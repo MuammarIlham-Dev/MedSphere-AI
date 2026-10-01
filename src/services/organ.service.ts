@@ -1,0 +1,82 @@
+import { supabase } from '@/lib/supabase';
+import { unwrap } from '@/lib/api';
+import type { OrganDonor, OrganMatch, OrganRecipient, OrganStats, RegisterDonorInput, RegisterRecipientInput, OrganType, BloodGroup } from '@/types';
+
+export const organService = {
+  registerDonor: async (input: RegisterDonorInput): Promise<OrganDonor> => {
+    const uid = (await supabase.auth.getUser()).data.user?.id;
+    return unwrap(supabase.from('organ_donors')
+      .insert({ ...input, profile_id: uid, consent: input.consent_file_id ? 'granted' : 'pending' })
+      .select().single());
+  },
+
+  registerRecipient: async (input: RegisterRecipientInput): Promise<OrganRecipient> => {
+    const uid = (await supabase.auth.getUser()).data.user?.id;
+    return unwrap(supabase.from('organ_recipients').insert({ ...input, profile_id: uid }).select().single());
+  },
+
+  eligibleDonors: async (): Promise<Array<Pick<OrganDonor, 'id' | 'organs' | 'blood_group'> & { full_name: string }>> => {
+    const rows = await unwrap<Array<{ id: string; organs: OrganType[]; blood_group: BloodGroup; profiles: { full_name: string } | null }>>(
+      // @ts-expect-error supabase type mapping mismatch
+      supabase.from('organ_donors')
+        .select('id, organs, blood_group, profiles(full_name)')
+        .eq('status', 'active')
+        .eq('consent', 'granted')
+        .not('consent_file_id', 'is', null)
+        .not('medical_eligibility', 'is', null)
+        .order('registered_at', { ascending: false })
+    );
+    return rows.map((row) => ({
+      id: row.id,
+      organs: row.organs,
+      blood_group: row.blood_group,
+      full_name: row.profiles?.full_name ?? 'Unnamed donor'
+    }));
+  },
+
+  /** Coordinator-only: invokes the SQL matching engine (assistive scoring). */
+  runMatching: (donorId: string) =>
+    unwrap<number>(supabase.rpc('run_organ_matching', { p_donor: donorId })),
+
+  listMatches: async (status?: string): Promise<OrganMatch[]> => {
+    let q = supabase.from('organ_matches')
+      .select(`*, organ_donors(profiles(full_name)), organ_recipients(priority_score, profiles(full_name))`)
+      .order('compatibility_score', { ascending: false }).limit(100);
+    if (status) q = q.eq('status', status);
+    const rows = await unwrap<Array<OrganMatch & { organ_donors?: { profiles?: { full_name: string } }; organ_recipients?: { priority_score: number; profiles?: { full_name: string } } }>>(q);
+    return rows.map((r) => ({
+      ...r,
+      donor_name: r.organ_donors?.profiles?.full_name,
+      recipient_name: r.organ_recipients?.profiles?.full_name,
+      recipient_priority: r.organ_recipients?.priority_score,
+      organ_donors: undefined, organ_recipients: undefined,
+    }));
+  },
+
+  /** Human review decision — the engine never auto-accepts. */
+  review: (matchId: string, approve: boolean, notes: string) =>
+    unwrap(supabase.from('organ_matches')
+      .update({ status: approve ? 'accepted' : 'rejected', notes, reviewed_at: new Date().toISOString() })
+      .eq('id', matchId).select().single()),
+
+  stats: async (): Promise<OrganStats> => {
+    const [donors, waiting, matches] = await Promise.all([
+      supabase.from('organ_donors').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+      supabase.from('organ_recipients').select('organ_needed', { count: 'exact' }).eq('status', 'waiting'),
+      supabase.from('organ_matches').select('status'),
+    ]);
+    const matchRows = (matches.data ?? []) as Array<{ status: string }>;
+    const waitingRows = (waiting.data ?? []) as Array<{ organ_needed: OrganStats['byOrgan'][number]['organ'] }>;
+    const byOrgan = Object.entries(
+      waitingRows.reduce<Record<string, number>>((acc, r) => ({ ...acc, [r.organ_needed]: (acc[r.organ_needed] ?? 0) + 1 }), {}),
+    ).map(([organ, w]) => ({ organ: organ as OrganStats['byOrgan'][number]['organ'], waiting: w }));
+    return {
+      donors: donors.count ?? 0,
+      waiting: waiting.count ?? 0,
+      proposed: matchRows.filter((m) => m.status === 'proposed').length,
+      accepted: matchRows.filter((m) => m.status === 'accepted').length,
+      transplanted: matchRows.filter((m) => m.status === 'transplanted').length,
+      byOrgan,
+    };
+  },
+};

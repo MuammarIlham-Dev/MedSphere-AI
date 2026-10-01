@@ -1,0 +1,219 @@
+# Master UI/UX Implementation Guide
+
+### Phase 1: Design System Token Transformation
+Complete overhaul of design tokens to establish a premium, "Lively Sapphire & Mint" aesthetic with depth and glassmorphism.
+
+---
+
+#### [MODIFY] tailwind.config.ts
+
+Replace the entire color palette with the new lively semantic tokens:
+
+| Token Name | New Value | Purpose |
+|---|---|---|
+| `brand-950` | `#082F49` | Deepest canvas and ultra-dark typography (Sapphire base) |
+| `brand-900` | `#0C4A6E` | Primary text and major headings |
+| `brand-800` | `#0369A1` | High-emphasis secondary text / hover states |
+| `brand-700` | `#0284C7` | Neutral iconography and muted details |
+| `brand-600` | `#0EA5E9` | Primary brand action (lighter blue) |
+| `brand-500` | `#14B8A6` | Vivid Mint accent! |
+| `brand-400` | `#2DD4BF` | Lighter mint for hover |
+| `brand-300` | `#5EEAD4` | Interactive status (inactive/disabled mint) |
+| `brand-200` | `#BAE6FD` | Delicate separators in blue |
+| `brand-100` | `#E0F2FE` | Micro-borders (1px solid) |
+| `brand-50`  | `#F0F9FF` | Frosted/subtle input fills |
+| `surface-canvas` | `#F8FAFC` | Off-white technical background for grid |
+| `surface-card` | `rgba(255, 255, 255, 0.8)` | Translucent white for glassmorphism |
+| `border-subtle` | `rgba(224, 242, 254, 0.5)` | Structural hairline card dividers |
+
+Update `fontFamily.sans` to use `Outfit` for headings and `Inter` for body text.
+
+**Shadows:**
+Add custom soft shadows for floating elements:
+`shadow-soft`: `0 10px 40px -10px rgba(12, 74, 110, 0.08)`
+`shadow-glow`: `0 0 20px 0 rgba(20, 184, 166, 0.3)`
+
+**Spacing & Border Radius:**
+Implement macro-whitespace (`p-8`, `p-12`). Ensure corners are comfortably rounded (`rounded-2xl` or `rounded-3xl`).
+
+---
+
+#### [MODIFY] index.html
+
+- Change `theme-color` meta to `#F8FAFC`
+- Add Google Fonts preconnect + stylesheet link for `Outfit` and `Inter`
+- Add proper title: `Premium Health Experience`
+
+---
+
+#### [MODIFY] src/index.css
+
+- Update base body styles to use `bg-surface-canvas` and apply a subtle SVG grid pattern.
+- Add `.glass` component: `bg-white/80 backdrop-blur-xl border border-brand-100 shadow-soft`.
+- Focus ring: `ring-brand-500` with 2px offset for lively interactions.
+- Add bouncy, lively transitions (e.g., 400ms ease-out) for interactive elements.
+
+---
+
+### Phase 2: Component Library Rebuild
+Rebuild all primitive UI components to match the lively, glassmorphic design specifications.
+
+---
+
+#### [MODIFY] Button.tsx
+
+- `primary` variant: Solid `#14B8A6` (Vivid Mint) background, white text.
+- Shape: Rounded corners (`rounded-xl` or `rounded-2xl`).
+- Hover state: Slight translateY (-2px), shadow-glow, and color shift to `#0D9488`.
+- `secondary` variant: Glassmorphic background (`bg-white/50`), 1px solid `#BAE6FD` border, `#0C4A6E` text.
+
+#### [MODIFY] Card.tsx
+
+- Base: Apply the `.glass` utility.
+- Corner radius: `rounded-3xl`
+- Padding: Large internal padding (`p-8` or `p-10`)
+- Hover: Soft lift (`-translate-y-1`) with increased shadow blur.
+
+#### [NEW] FilterChip.tsx
+
+- Pill layout with glass background.
+- Active state: `#0EA5E9` fill, `#FFFFFF` text, shadow-soft.
+- Inactive state: `bg-white/50`, `#0369A1` text.
+
+#### [NEW] AvatarStack.tsx
+
+- Minimalist 32x32px avatars.
+- Border: 2px solid `#F8FAFC`.
+- Vibrant, high-contrast imagery to fit the lively theme.
+
+#### [NEW] ProgressStepper.tsx
+
+- Thicker 2px track line in `#E0F2FE`.
+- Nodes are glowing solid dots (`#14B8A6`) when active, bordered circles when inactive.
+- Energetic typography for dates/statuses.
+
+#### [NEW] BottomNavDock.tsx
+
+- Floating glass pill layout (`rounded-full`, `shadow-soft`) near bottom of screen.
+- Active tab: `#14B8A6` text/icon with a subtle dot indicator below.
+- Inactive tabs: `#0369A1`.
+
+#### [NEW] VisitTypeSwitcher.tsx
+
+- Segmented control inside a glass container (`bg-brand-50/50`).
+- Selected: Floating white pill with soft shadow, `#0C4A6E` text.
+- Unselected: Transparent, `#0369A1` text.
+
+#### [NEW] ProcedureGrid.tsx
+
+- 4-column icon grid.
+- Glassmorphic mini-cards.
+- Bright, duotone icons in Sapphire and Mint.
+
+#### [MODIFY] Badge.tsx
+
+- Pill shape, translucent backgrounds.
+- Active/Success: `bg-brand-500/10` with `#0F766E` text.
+- Informational: `bg-brand-600/10` with `#0369A1` text.
+
+#### [MODIFY] Input.tsx
+
+- Fill: `bg-white/60 backdrop-blur-md`
+- Border: `1px solid #BAE6FD`
+- Focus state: `1px solid #14B8A6`, plus `shadow-glow`.
+- Corners: `rounded-xl`.
+
+---
+
+### Phase 3: New Screens
+Build the screens utilizing the lively, glassmorphic aesthetic over the grid canvas.
+
+---
+
+#### [NEW] Onboarding.tsx
+
+- **Canvas**: Off-white grid `#F8FAFC`.
+- **Typography**: Massive `Outfit` headings in deep Sapphire `#082F49`.
+- **Center Visual**: Energetic, floating 3D health elements (like a glowing pill, heart rate sparkline, or clean medical cross) with soft shadows.
+- **Action Dock**: Floating glass bar at the bottom with a large Vivid Mint "Get Started" button.
+
+#### [NEW] DiscoveryDashboard.tsx
+
+- **Header**: Glassmorphic, floating header.
+- **Page Title**: "Find Care" (28pt Outfit, bold).
+- **Hero Card**: Vibrant Sapphire-to-Mint subtle gradient card with floating UI elements.
+- **Diagnostic Cards**: Glass cards arranged dynamically on the grid.
+
+#### [NEW] ConsultationDetail.tsx
+
+- **Nav Bar**: Floating glass back button.
+- **Doctor Card**: Physician portrait (bright, friendly), vibrant typography.
+- **Progress Stepper**: Mint-colored glowing active states.
+
+#### [MODIFY] AppShell.tsx
+
+- **Sidebar**: Floating glass panel with rounded right corners. 
+- **Header**: Disappears or blends into the canvas grid.
+- **Color updates**: All active states use Vivid Mint.
+
+---
+
+### Phase 4: Animation & Micro-Interaction System
+Ensure all motion contributes to a lively, fluid environment.
+
+---
+
+#### [MODIFY] gsap.ts
+
+- Re-introduce soft spring physics for a lively feel.
+- `usePopReveal()`: Slight scale up (0.95 -> 1) with spring easing and opacity fade over 500ms.
+- `useHoverLift()`: Translates Y by -4px and scales shadow on hover.
+
+#### [NEW] SkeletonLoader.tsx
+
+- Vibrant, shimmering gradients (Sapphire to Mint) flowing across pill-shaped skeletons to feel fast and active.
+
+---
+
+### Phase 5: Asset Generation & SVG Icons
+Create lively visual assets.
+
+---
+
+#### SVG Icons
+- Duotone icons: 1.5px stroke weight. Primary lines in Sapphire, accent fills/lines in Mint.
+
+#### Imagery
+- High contrast, bright, trustworthy lifestyle imagery with pops of energetic colors.
+
+---
+
+### Phase 6: Routing & Integration
+Wire up new screens into the existing application router.
+
+---
+
+#### [MODIFY] App.tsx
+
+```tsx
+const PremiumOnboarding = lazy(() => import('@/pages/premium/Onboarding'));
+const PremiumDiscovery = lazy(() => import('@/pages/premium/DiscoveryDashboard'));
+const PremiumConsultation = lazy(() => import('@/pages/premium/ConsultationDetail'));
+
+// Routes
+<Route path="/premium" element={<PremiumOnboarding />} />
+<Route path="/premium/discover" element={<PremiumDiscovery />} />
+<Route path="/premium/consultation/:id" element={<PremiumConsultation />} />
+```
+
+#### [MODIFY] Landing.tsx
+
+Re-theme landing page with the grid canvas and floating glass cards.
+
+---
+
+### Phase 7: Accessibility Compliance (WCAG 2.1 AA)
+
+- Text contrast ratios strictly enforced for Sapphire text against glass/white backgrounds.
+- `prefers-reduced-motion: reduce` fully supported (disables springs/bounces).
+- Ensure focus rings (Mint) are sufficiently thick (2px) and visible.

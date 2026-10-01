@@ -1,0 +1,1313 @@
+// ============================================================================
+// MedSphere AI — application entry, router, and all feature pages
+// ============================================================================
+
+// ---------------------------------------------------------------------------
+// src/main.tsx
+// ---------------------------------------------------------------------------
+// import { StrictMode } from 'react';
+// import { createRoot } from 'react-dom/client';
+// import App from './App';
+// import './index.css';
+// createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);
+
+// ---------------------------------------------------------------------------
+// src/App.tsx
+// ---------------------------------------------------------------------------
+import { lazy, Suspense } from 'react';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from '@/lib/queryClient';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { FullPageLoader } from '@/components/ui/Spinner';
+import { AppShell } from '@/components/layout/AppShell';
+import { ProtectedRoute, RoleGate } from '@/components/auth/ProtectedRoute';
+import { useAuthStore } from '@/stores/authStore';
+
+const Landing = lazy(() => import('@/pages/Landing'));
+const Login = lazy(() => import('@/pages/auth/Login'));
+const Register = lazy(() => import('@/pages/auth/Register'));
+const CitizenDashboard = lazy(() => import('@/pages/citizen/CitizenDashboard'));
+const DoctorDashboard = lazy(() => import('@/pages/doctor/DoctorDashboard'));
+const HospitalDashboard = lazy(() => import('@/pages/hospital/HospitalDashboard'));
+const DoctorSearch = lazy(() => import('@/pages/appointments/DoctorSearch'));
+const ConsultationRoom = lazy(() => import('@/pages/telemedicine/ConsultationRoom'));
+const OrganDashboard = lazy(() => import('@/pages/organ/OrganDashboard'));
+const BloodBankDashboard = lazy(() => import('@/pages/blood/BloodBankDashboard'));
+const EmergencySOS = lazy(() => import('@/pages/emergency/EmergencySOS'));
+const GovDashboard = lazy(() => import('@/pages/government/GovDashboard'));
+const AdminDashboard = lazy(() => import('@/pages/admin/AdminDashboard'));
+const NotFound = lazy(() => import('@/pages/NotFound'));
+
+/** Redirects /app to the home dashboard for the signed-in role. */
+function RoleHome() {
+  const profile = useAuthStore((s) => s.profile);
+  if (!profile) return <FullPageLoader />;
+  const home: Record<string, string> = {
+    citizen: '/app/citizen', doctor: '/app/doctor', hospital: '/app/hospital',
+    blood_bank: '/app/blood', organ_authority: '/app/organ',
+    emergency_operator: '/app/emergency', government: '/app/gov', researcher: '/app/gov',
+    admin: '/app/admin', super_admin: '/app/admin',
+  };
+  return <Navigate to={home[profile.role] ?? '/app/citizen'} replace />;
+}
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <Suspense fallback={<FullPageLoader />}>
+            <Routes>
+              <Route path="/" element={<Landing />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route element={<ProtectedRoute><AppShell /></ProtectedRoute>}>
+                <Route path="/app" element={<RoleHome />} />
+                <Route path="/app/citizen" element={<RoleGate allow={['citizen']}><CitizenDashboard /></RoleGate>} />
+                <Route path="/app/doctor" element={<RoleGate allow={['doctor']}><DoctorDashboard /></RoleGate>} />
+                <Route path="/app/hospital" element={<RoleGate allow={['hospital', 'admin', 'super_admin']}><HospitalDashboard /></RoleGate>} />
+                <Route path="/app/appointments" element={<DoctorSearch />} />
+                <Route path="/app/consult" element={<ConsultationRoom />} />
+                <Route path="/app/consult/:appointmentId" element={<ConsultationRoom />} />
+                <Route path="/app/organ" element={<RoleGate allow={['citizen', 'organ_authority', 'hospital', 'admin', 'super_admin']}><OrganDashboard /></RoleGate>} />
+                <Route path="/app/blood" element={<BloodBankDashboard />} />
+                <Route path="/app/emergency" element={<EmergencySOS />} />
+                <Route path="/app/gov" element={<RoleGate allow={['government', 'researcher', 'admin', 'super_admin']}><GovDashboard /></RoleGate>} />
+                <Route path="/app/admin" element={<RoleGate allow={['admin', 'super_admin']}><AdminDashboard /></RoleGate>} />
+              </Route>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Suspense>
+        </BrowserRouter>
+      </QueryClientProvider>
+    </ErrorBoundary>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// src/pages/Landing.tsx
+// ---------------------------------------------------------------------------
+import { Link } from 'react-router-dom';
+import { IoMedkitOutline, IoShieldCheckmarkOutline, IoPulseOutline, IoPeopleOutline } from 'react-icons/io5';
+
+export default function Landing() {
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-brand-50 via-surface-soft to-surface-soft dark:from-surface-dark dark:to-surface-dark">
+      <header className="container flex items-center justify-between py-5">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white">
+            <IoMedkitOutline className="h-5 w-5" />
+          </div>
+          <span className="text-lg font-semibold">MedSphere <span className="text-brand-600">AI</span></span>
+        </div>
+        <nav className="flex items-center gap-2">
+          <ThemeToggle />
+          <Link to="/login"><Button variant="ghost">Sign in</Button></Link>
+          <Link to="/register"><Button>Get started</Button></Link>
+        </nav>
+      </header>
+
+      <main className="container py-16 text-center sm:py-24">
+        <Badge tone="brand" className="mx-auto mb-6">National Public Health & Emergency Response Platform</Badge>
+        <h1 className="mx-auto max-w-3xl text-4xl font-bold tracking-tight text-slate-900 sm:text-6xl dark:text-white">
+          Healthcare that finds you <span className="bg-gradient-to-r from-brand-500 to-brand-700 bg-clip-text text-transparent">before</span> the emergency does
+        </h1>
+        <p className="mx-auto mt-6 max-w-xl text-lg text-slate-500 dark:text-slate-400">
+          One digital health ID for appointments, telemedicine, organ matching, blood networks and one-tap emergency response — for every citizen.
+        </p>
+        <div className="mt-10 flex flex-wrap justify-center gap-3">
+          <Link to="/register"><Button size="lg">Create your Health ID</Button></Link>
+          <Link to="/login"><Button size="lg" variant="secondary">I work in healthcare</Button></Link>
+        </div>
+
+        <div className="mx-auto mt-20 grid max-w-4xl gap-4 sm:grid-cols-3">
+          {[
+            { icon: <IoPulseOutline className="h-6 w-6" />, t: 'Emergency-first', d: 'One-tap SOS with live ambulance tracking and hospital capacity routing.' },
+            { icon: <IoPeopleOutline className="h-6 w-6" />, t: 'Organ & blood network', d: 'Coordinator-assisted compatibility scoring with full audit trails.' },
+            { icon: <IoShieldCheckmarkOutline className="h-6 w-6" />, t: 'Medical-grade security', d: 'Row-level security, MFA, and end-to-end audit logging by default.' },
+          ].map((f) => (
+            <Card key={f.t} className="p-6 text-left">
+              <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-950 dark:text-brand-400">{f.icon}</div>
+              <h3 className="font-semibold">{f.t}</h3>
+              <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">{f.d}</p>
+            </Card>
+          ))}
+        </div>
+        <p className="mt-16 text-xs text-slate-400">
+          MedSphere AI provides informational tools only and never replaces licensed medical professionals.
+        </p>
+      </main>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// src/pages/auth/Login.tsx — email + Google + phone OTP + TOTP MFA challenge
+// ---------------------------------------------------------------------------
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { FcGoogle } from 'react-icons/fc';
+import { authService } from '@/services/auth.service';
+import { Turnstile } from '@/components/security/Turnstile';
+import { useAuthStore } from '@/stores/authStore';
+import { useUiStore } from '@/stores/uiStore';
+
+const emailSchema = z.object({
+  email: z.string().email('Enter a valid email'),
+  password: z.string().min(8, 'Minimum 8 characters'),
+});
+type EmailForm = z.infer<typeof emailSchema>;
+
+export default function Login() {
+  const [mode, setMode] = useState<'email' | 'phone'>('email');
+  const [mfaStep, setMfaStep] = useState(false);
+  const [mfaCode, setMfaCode] = useState('');
+  const [phone, setPhone] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [captcha, setCaptcha] = useState<string>();
+  const [busy, setBusy] = useState(false);
+  const navigate = useNavigate();
+  const toast = useUiStore((s) => s.toast);
+  const init = useAuthStore((s) => s.init);
+
+  const { register, handleSubmit, formState: { errors } } = useForm<EmailForm>({ resolver: zodResolver(emailSchema) });
+
+  const afterPrimaryAuth = async () => {
+    if (await authService.needsMfaChallenge()) { setMfaStep(true); return; }
+    await init();
+    navigate('/app', { replace: true });
+  };
+
+  const onEmail = async (values: EmailForm) => {
+    setBusy(true);
+    const { error } = await authService.signInEmail(values.email, values.password, captcha);
+    setBusy(false);
+    if (error) return toast('error', error.message);
+    await afterPrimaryAuth();
+  };
+
+  const onMfa = async () => {
+    setBusy(true);
+    try {
+      const { error } = await authService.verifyMfaTotp(mfaCode);
+      if (error) throw error;
+      await init();
+      navigate('/app', { replace: true });
+    } catch (e) {
+      toast('error', e instanceof Error ? e.message : 'Invalid code');
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-surface-soft p-4 dark:bg-surface-dark">
+      <Card className="w-full max-w-md p-8">
+        <h1 className="text-2xl font-semibold tracking-tight">{mfaStep ? 'Two-factor verification' : 'Welcome back'}</h1>
+        <p className="mt-1 text-sm text-slate-500">
+          {mfaStep ? 'Enter the 6-digit code from your authenticator app.' : 'Sign in to your MedSphere account.'}
+        </p>
+
+        {mfaStep ? (
+          <div className="mt-6 space-y-4">
+            <Input label="Authenticator code" inputMode="numeric" maxLength={6} value={mfaCode}
+              onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, ''))} placeholder="123456" autoFocus />
+            <Button className="w-full" loading={busy} disabled={mfaCode.length !== 6} onClick={() => void onMfa()}>Verify</Button>
+          </div>
+        ) : (
+          <>
+            <div className="mt-6"><Tabs tabs={[{ id: 'email', label: 'Email' }, { id: 'phone', label: 'Phone OTP' }]} active={mode} onChange={setMode} /></div>
+
+            {mode === 'email' ? (
+              <form onSubmit={handleSubmit(onEmail)} className="mt-5 space-y-4" noValidate>
+                <Input id="email" label="Email" type="email" autoComplete="email" error={errors.email?.message} {...register('email')} />
+                <Input id="password" label="Password" type="password" autoComplete="current-password" error={errors.password?.message} {...register('password')} />
+                <Turnstile onVerify={setCaptcha} />
+                <Button type="submit" className="w-full" loading={busy}>Sign in</Button>
+              </form>
+            ) : (
+              <div className="mt-5 space-y-4">
+                {!otpSent ? (
+                  <>
+                    <Input id="phone" label="Phone (E.164)" placeholder="+8801XXXXXXXXX" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                    <Turnstile onVerify={setCaptcha} />
+                    <Button className="w-full" loading={busy} onClick={async () => {
+                      setBusy(true);
+                      const { error } = await authService.sendPhoneOtp(phone, captcha);
+                      setBusy(false);
+                      if (error) return toast('error', error.message);
+                      setOtpSent(true);
+                    }}>Send OTP</Button>
+                  </>
+                ) : (
+                  <>
+                    <Input id="otp" label="6-digit code" inputMode="numeric" maxLength={6} value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))} />
+                    <Button className="w-full" loading={busy} onClick={async () => {
+                      setBusy(true);
+                      const { error } = await authService.verifyPhoneOtp(phone, otp);
+                      setBusy(false);
+                      if (error) return toast('error', error.message);
+                      await afterPrimaryAuth();
+                    }}>Verify & sign in</Button>
+                  </>
+                )}
+              </div>
+            )}
+
+            <div className="my-5 flex items-center gap-3 text-xs text-slate-400">
+              <span className="h-px flex-1 bg-slate-200 dark:bg-white/10" /> or <span className="h-px flex-1 bg-slate-200 dark:bg-white/10" />
+            </div>
+            <Button variant="secondary" className="w-full" onClick={() => void authService.signInGoogle()}>
+              <FcGoogle className="h-5 w-5" /> Continue with Google
+            </Button>
+            <p className="mt-5 text-center text-sm text-slate-500">
+              New here? <Link to="/register" className="font-medium text-brand-600 hover:underline">Create an account</Link>
+            </p>
+          </>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// src/pages/auth/Register.tsx — role-based onboarding (self-serve safe roles)
+// ---------------------------------------------------------------------------
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { authService } from '@/services/auth.service';
+import { Turnstile } from '@/components/security/Turnstile';
+import { useUiStore } from '@/stores/uiStore';
+
+const schema = z.object({
+  full_name: z.string().min(2, 'Enter your full name'),
+  email: z.string().email(),
+  password: z.string().min(10, 'Minimum 10 characters')
+    .regex(/[A-Z]/, 'Add an uppercase letter').regex(/[0-9]/, 'Add a number'),
+  role: z.enum(['citizen', 'doctor', 'hospital', 'laboratory', 'pharmacy', 'blood_bank', 'volunteer']),
+});
+type Form = z.infer<typeof schema>;
+
+const STAFF_ROLES = new Set(['doctor', 'hospital', 'laboratory', 'pharmacy', 'blood_bank']);
+
+export default function Register() {
+  const [captcha, setCaptcha] = useState<string>();
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const navigate = useNavigate();
+  const toast = useUiStore((s) => s.toast);
+  const { register, handleSubmit, watch, formState: { errors } } = useForm<Form>({
+    resolver: zodResolver(schema), defaultValues: { role: 'citizen' },
+  });
+  const role = watch('role');
+
+  const onSubmit = async (values: Form) => {
+    setBusy(true);
+    const { error } = await authService.signUpEmail(values.email, values.password, values.full_name, values.role, captcha);
+    setBusy(false);
+    if (error) return toast('error', error.message);
+    setDone(true);
+  };
+
+  if (done) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <Card className="w-full max-w-md p-8 text-center">
+          <h1 className="text-xl font-semibold">Check your inbox</h1>
+          <p className="mt-2 text-sm text-slate-500">
+            We sent a confirmation link to your email.
+            {STAFF_ROLES.has(role) && ' After confirming, your professional profile will enter verification review by our admin team.'}
+          </p>
+          <Button className="mt-6" onClick={() => navigate('/login')}>Back to sign in</Button>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-surface-soft p-4 dark:bg-surface-dark">
+      <Card className="w-full max-w-md p-8">
+        <h1 className="text-2xl font-semibold tracking-tight">Create your account</h1>
+        <p className="mt-1 text-sm text-slate-500">Your Digital Health ID is generated automatically.</p>
+        <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-4" noValidate>
+          <Input id="full_name" label="Full name" error={errors.full_name?.message} {...register('full_name')} />
+          <Input id="email" label="Email" type="email" error={errors.email?.message} {...register('email')} />
+          <Input id="password" label="Password" type="password" error={errors.password?.message} {...register('password')} />
+          <Select id="role" label="I am joining as" error={errors.role?.message} {...register('role')}>
+            <option value="citizen">Citizen</option>
+            <option value="doctor">Doctor (requires verification)</option>
+            <option value="hospital">Hospital (requires verification)</option>
+            <option value="laboratory">Laboratory (requires verification)</option>
+            <option value="pharmacy">Pharmacy (requires verification)</option>
+            <option value="blood_bank">Blood Bank (requires verification)</option>
+            <option value="volunteer">Volunteer</option>
+          </Select>
+          {STAFF_ROLES.has(role) && (
+            <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+              Professional accounts require document verification before platform access is granted.
+            </p>
+          )}
+          <Turnstile onVerify={setCaptcha} />
+          <Button type="submit" className="w-full" loading={busy}>Create account</Button>
+        </form>
+        <p className="mt-5 text-center text-sm text-slate-500">
+          Already registered? <Link to="/login" className="font-medium text-brand-600 hover:underline">Sign in</Link>
+        </p>
+      </Card>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// src/pages/citizen/CitizenDashboard.tsx
+// ---------------------------------------------------------------------------
+import { IoCalendarOutline, IoWaterOutline, IoMedkitOutline, IoDocumentTextOutline } from 'react-icons/io5';
+import { Link } from 'react-router-dom';
+import { useMyAppointments } from '@/hooks/useAppointments';
+import { useAuthStore } from '@/stores/authStore';
+import { useRef } from 'react';
+import { useReveal } from '@/lib/gsap';
+
+export default function CitizenDashboard() {
+  const profile = useAuthStore((s) => s.profile);
+  const { data: appointments, isLoading } = useMyAppointments();
+  const rootRef = useRef<HTMLDivElement>(null);
+  useReveal(rootRef);
+
+  const upcoming = (appointments ?? []).filter((a) => new Date(a.scheduled_at) > new Date() && a.status !== 'cancelled');
+
+  return (
+    <PageTransition>
+      <div ref={rootRef}>
+        <PageHeader title={`Hello, ${profile?.full_name.split(' ')[0] ?? 'there'}`}
+          subtitle={`Digital Health ID: ${profile?.digital_health_id ?? '—'}`}
+          actions={<Link to="/app/emergency"><Button variant="danger">Emergency SOS</Button></Link>} />
+
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <KpiCard label="Upcoming appointments" value={upcoming.length} icon={<IoCalendarOutline className="h-5 w-5" />} />
+          <KpiCard label="Blood group" value={profile?.blood_group ?? 'Not set'} icon={<IoWaterOutline className="h-5 w-5" />} />
+          <KpiCard label="Active prescriptions" value="—" icon={<IoMedkitOutline className="h-5 w-5" />} />
+          <KpiCard label="Health documents" value="—" icon={<IoDocumentTextOutline className="h-5 w-5" />} />
+        </div>
+
+        <div className="mt-6 grid gap-4 lg:grid-cols-3">
+          <Card className="lg:col-span-2" data-reveal>
+            <CardHeader title="Upcoming appointments" subtitle="Your next consultations"
+              action={<Link to="/app/appointments"><Button size="sm" variant="secondary">Book new</Button></Link>} />
+            <ul className="divide-y divide-slate-100 dark:divide-white/5">
+              {isLoading && [0, 1, 2].map((i) => <li key={i} className="p-5"><Skeleton className="h-10 w-full" /></li>)}
+              {!isLoading && upcoming.length === 0 && (
+                <li className="p-5"><EmptyState title="No upcoming appointments" hint="Find a doctor and book your first consultation." /></li>
+              )}
+              {upcoming.slice(0, 5).map((a) => (
+                <li key={a.id} className="flex items-center justify-between px-5 py-4">
+                  <div>
+                    <p className="text-sm font-medium">{a.doctor_name ?? 'Doctor'} · <span className="text-slate-400">{a.specialty}</span></p>
+                    <p className="mt-0.5 text-xs text-slate-400">{formatDateTime(a.scheduled_at)} · Token #{a.token_number}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge tone={a.type === 'video' ? 'info' : 'brand'}>{a.type}</Badge>
+                    {a.type === 'video' && <Link to={`/app/consult/${a.id}`}><Button size="sm" variant="secondary">Join</Button></Link>}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </Card>
+
+          <ChartCard title="Health timeline" subtitle="Appointments per month" config={{
+            type: 'line',
+            data: {
+              labels: ['Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan'],
+              datasets: [{
+                label: 'Visits', data: [1, 2, 1, 3, 2, upcoming.length],
+                borderColor: '#0891b2', backgroundColor: 'rgba(8,145,178,0.12)', fill: true, tension: 0.4,
+              }],
+            },
+          }} />
+        </div>
+      </div>
+    </PageTransition>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// src/pages/doctor/DoctorDashboard.tsx — live queue, KPIs, utilization
+// ---------------------------------------------------------------------------
+import { IoPeopleOutline, IoCheckmarkDoneOutline, IoTimeOutline, IoStarOutline } from 'react-icons/io5';
+import { useTodayQueue, useUpdateAppointmentStatus } from '@/hooks/useAppointments';
+import { useAuthStore } from '@/stores/authStore';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
+import { unwrap } from '@/lib/api';
+import { useUiStore } from '@/stores/uiStore';
+import type { AppointmentStatus } from '@/types';
+
+const NEXT: Partial<Record<AppointmentStatus, AppointmentStatus>> = {
+  booked: 'confirmed', confirmed: 'checked_in', checked_in: 'in_progress', in_progress: 'completed',
+};
+
+export default function DoctorDashboard() {
+  const profile = useAuthStore((s) => s.profile);
+  const toast = useUiStore((s) => s.toast);
+  const { data: doctor } = useQuery({
+    queryKey: ['my-doctor', profile?.id],
+    queryFn: () => unwrap<any>(supabase.from('doctors').select('*').eq('profile_id', profile!.id).single()),
+    enabled: !!profile,
+  });
+  const queue = useTodayQueue(doctor?.id);
+  const setStatus = useUpdateAppointmentStatus();
+
+  const items = queue.data ?? [];
+  const current = items.find((a) => a.status === 'in_progress') ?? items.find((a) => a.status === 'checked_in');
+  const done = items.filter((a) => a.status === 'completed').length;
+
+  return (
+    <PageTransition>
+      <PageHeader title="Today's practice" subtitle={doctor ? `${doctor.specialty} · ${items.length} patients scheduled` : 'Loading…'} />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiCard label="Patients today" value={items.length} icon={<IoPeopleOutline className="h-5 w-5" />} />
+        <KpiCard label="Completed" value={done} icon={<IoCheckmarkDoneOutline className="h-5 w-5" />} />
+        <KpiCard label="Current token" value={current ? `#${current.token_number}` : '—'} icon={<IoTimeOutline className="h-5 w-5" />} />
+        <KpiCard label="Rating" value={doctor ? `${doctor.rating_avg} (${doctor.rating_count})` : '—'} icon={<IoStarOutline className="h-5 w-5" />} />
+      </div>
+
+      <Card className="mt-6">
+        <CardHeader title="Live queue" subtitle="Advance patients through the consultation flow" />
+        <ul className="divide-y divide-slate-100 dark:divide-white/5">
+          {queue.isLoading && <li className="p-5"><Skeleton className="h-12 w-full" /></li>}
+          {items.length === 0 && !queue.isLoading && <li className="p-5"><EmptyState title="No patients scheduled today" /></li>}
+          {items.map((a) => (
+            <li key={a.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+              <div className="flex items-center gap-4">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-50 text-sm font-bold text-brand-700 dark:bg-brand-950 dark:text-brand-300">
+                  {a.token_number}
+                </span>
+                <div>
+                  <p className="text-sm font-medium">{a.patient_name}</p>
+                  <p className="text-xs text-slate-400">{formatTime(a.scheduled_at)} · {a.type} · {a.reason ?? 'General consultation'}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge tone={a.status === 'completed' ? 'success' : a.status === 'cancelled' ? 'danger' : 'brand'}>{a.status.replace('_', ' ')}</Badge>
+                {NEXT[a.status] && (
+                  <Button size="sm" onClick={() => setStatus.mutate({ id: a.id, status: NEXT[a.status]! },
+                    { onError: (e) => toast('error', e.message) })}>
+                    {NEXT[a.status] === 'completed' ? 'Complete' : 'Advance'}
+                  </Button>
+                )}
+                {a.type === 'video' && a.status !== 'completed' && (
+                  <Link to={`/app/consult/${a.id}`}><Button size="sm" variant="secondary">Join video</Button></Link>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      </Card>
+
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <ChartCard title="Weekly utilization" config={{
+          type: 'bar',
+          data: {
+            labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+            datasets: [{ label: 'Consultations', data: [8, 11, 9, 12, 10, items.length], backgroundColor: '#0891b2', borderRadius: 8 }],
+          },
+        }} />
+        <ChartCard title="Consultation mix" config={{
+          type: 'doughnut',
+          data: {
+            labels: ['Video', 'Clinic'],
+            datasets: [{ data: [items.filter((a) => a.type === 'video').length || 1, items.filter((a) => a.type === 'clinic').length || 1], backgroundColor: ['#0891b2', '#67e8f9'] }],
+          },
+        }} />
+      </div>
+    </PageTransition>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// src/pages/hospital/HospitalDashboard.tsx — capacity & resources
+// ---------------------------------------------------------------------------
+import { IoBedOutline, IoBusinessOutline, IoMedkitOutline, IoCarOutline } from 'react-icons/io5';
+
+export default function HospitalDashboard() {
+  const profile = useAuthStore((s) => s.profile);
+  const { data: hospital } = useQuery({
+    queryKey: ['my-hospital', profile?.id],
+    queryFn: () => unwrap<any>(supabase.from('hospitals').select('*').eq('owner_id', profile!.id).maybeSingle()),
+    enabled: !!profile,
+  });
+
+  if (!hospital) return <EmptyState title="Hospital profile not found" hint="Complete hospital onboarding to manage capacity." />;
+  const occupancy = hospital.bed_capacity ? Math.round(((hospital.bed_capacity - hospital.beds_available) / hospital.bed_capacity) * 100) : 0;
+
+  return (
+    <PageTransition>
+      <PageHeader title={hospital.name} subtitle={`${hospital.city ?? ''} · ${hospital.type}`} />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiCard label="Beds available" value={`${hospital.beds_available}/${hospital.bed_capacity}`} icon={<IoBedOutline className="h-5 w-5" />} />
+        <KpiCard label="ICU available" value={`${hospital.icu_available}/${hospital.icu_capacity}`} icon={<IoMedkitOutline className="h-5 w-5" />} />
+        <KpiCard label="Occupancy" value={`${occupancy}%`} icon={<IoBusinessOutline className="h-5 w-5" />} />
+        <KpiCard label="Operation theaters" value={hospital.ot_count} icon={<IoCarOutline className="h-5 w-5" />} />
+      </div>
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <ChartCard title="Occupancy (7 days)" config={{
+          type: 'line',
+          data: {
+            labels: ['D-6', 'D-5', 'D-4', 'D-3', 'D-2', 'D-1', 'Today'],
+            datasets: [{ label: 'Occupancy %', data: [78, 81, 76, 84, 82, 85, occupancy], borderColor: '#0891b2', backgroundColor: 'rgba(8,145,178,.12)', fill: true, tension: 0.4 }],
+          },
+        }} />
+        <ChartCard title="Department load" config={{
+          type: 'bar',
+          data: {
+            labels: ['ER', 'ICU', 'Surgery', 'Maternity', 'General'],
+            datasets: [{ label: 'Patients', data: [42, hospital.icu_capacity - hospital.icu_available, 18, 12, 67], backgroundColor: ['#dc2626', '#d97706', '#0891b2', '#16a34a', '#64748b'], borderRadius: 8 }],
+          },
+        }} />
+      </div>
+    </PageTransition>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// src/pages/appointments/DoctorSearch.tsx — discovery + slot booking
+// ---------------------------------------------------------------------------
+import { useMemo, useState } from 'react';
+import { IoVideocamOutline, IoLocationOutline, IoStar } from 'react-icons/io5';
+import { useDoctorSearch, useDoctorSlots, useBookAppointment } from '@/hooks';
+import { SPECIALTIES, LANGUAGES, type DoctorCard, type ConsultationType } from '@/types';
+import { useUiStore } from '@/stores/uiStore';
+
+export default function DoctorSearch() {
+  const [query, setQuery] = useState('');
+  const [specialty, setSpecialty] = useState('');
+  const [language, setLanguage] = useState('');
+  const [type, setType] = useState<ConsultationType | ''>('');
+  const [selected, setSelected] = useState<DoctorCard | null>(null);
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+
+  const filters = useMemo(() => ({
+    query: query || undefined, specialty: specialty || undefined,
+    language: language || undefined, type: (type || undefined) as ConsultationType | undefined,
+  }), [query, specialty, language, type]);
+
+  const { data: doctors, isLoading } = useDoctorSearch(filters);
+  const { data: slots } = useDoctorSlots(selected?.id, date);
+  const book = useBookAppointment();
+  const toast = useUiStore((s) => s.toast);
+
+  return (
+    <PageTransition>
+      <PageHeader title="Find a doctor" subtitle="Search by specialty, language, consultation type and availability" />
+      <Card className="mb-6 grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Input placeholder="Doctor name…" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search by name" />
+        <Select value={specialty} onChange={(e) => setSpecialty(e.target.value)} aria-label="Specialty">
+          <option value="">All specialties</option>
+          {SPECIALTIES.map((s) => <option key={s} value={s}>{s}</option>)}
+        </Select>
+        <Select value={language} onChange={(e) => setLanguage(e.target.value)} aria-label="Language">
+          <option value="">Any language</option>
+          {LANGUAGES.map((l) => <option key={l} value={l}>{l}</option>)}
+        </Select>
+        <Select value={type} onChange={(e) => setType(e.target.value as ConsultationType | '')} aria-label="Consultation type">
+          <option value="">Video or clinic</option>
+          <option value="video">Video consultation</option>
+          <option value="clinic">In-clinic visit</option>
+        </Select>
+      </Card>
+
+      {isLoading && <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-44" />)}</div>}
+      {!isLoading && (doctors ?? []).length === 0 && <EmptyState title="No doctors match your filters" hint="Try widening the search criteria." />}
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {(doctors ?? []).map((d) => (
+          <Card key={d.id} className="flex flex-col p-5">
+            <div className="flex items-start gap-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-100 text-lg font-semibold text-brand-700 dark:bg-brand-900 dark:text-brand-200">
+                {initials(d.full_name)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold">{d.full_name}</p>
+                <p className="text-sm text-brand-600">{d.specialty}</p>
+                <p className="mt-1 flex items-center gap-1 text-xs text-slate-400">
+                  <IoLocationOutline /> {d.hospital_name ?? 'Independent'}{d.hospital_city ? ` · ${d.hospital_city}` : ''}
+                </p>
+              </div>
+              <span className="flex items-center gap-1 text-sm font-medium text-amber-500"><IoStar /> {d.rating_avg.toFixed(1)}</span>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-1.5">
+              {d.video_enabled && <Badge tone="info"><IoVideocamOutline /> Video</Badge>}
+              {d.clinic_enabled && <Badge tone="brand">Clinic</Badge>}
+              <Badge>{d.experience_years}y exp</Badge>
+              {d.languages.slice(0, 2).map((l) => <Badge key={l}>{l}</Badge>)}
+            </div>
+            <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4 dark:border-white/5">
+              <p className="text-sm font-semibold">৳{d.consultation_fee}</p>
+              <Button size="sm" onClick={() => setSelected(d)}>Book</Button>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      <Modal open={!!selected} onClose={() => setSelected(null)} title={`Book — Dr. ${selected?.full_name ?? ''}`} wide>
+        <Input label="Date" type="date" value={date} min={new Date().toISOString().slice(0, 10)} onChange={(e) => setDate(e.target.value)} />
+        <div className="mt-4 grid max-h-64 grid-cols-3 gap-2 overflow-y-auto sm:grid-cols-4">
+          {(slots ?? []).map((s) => (
+            <button key={s.start} disabled={!s.available || book.isPending}
+              onClick={() => {
+                if (!selected) return;
+                book.mutate(
+                  { doctor_id: selected.id, hospital_id: selected.hospital_id, scheduled_at: s.start, type: s.type },
+                  { onSuccess: () => setSelected(null), onError: (e) => toast('error', e.message) },
+                );
+              }}
+              className={cn('rounded-xl border px-2 py-2 text-xs font-medium transition-colors',
+                s.available
+                  ? 'border-brand-200 bg-brand-50 text-brand-700 hover:bg-brand-100 dark:border-brand-800 dark:bg-brand-950 dark:text-brand-300'
+                  : 'cursor-not-allowed border-slate-100 bg-slate-50 text-slate-300 dark:border-white/5 dark:bg-surface-dark-muted dark:text-slate-600')}>
+              {formatTime(s.start)}<span className="block text-[10px] font-normal">{s.type}</span>
+            </button>
+          ))}
+          {(slots ?? []).length === 0 && <p className="col-span-full py-6 text-center text-sm text-slate-400">No slots on this date — try another day.</p>}
+        </div>
+      </Modal>
+    </PageTransition>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// src/pages/telemedicine/ConsultationRoom.tsx — video placeholder + live chat
+// ---------------------------------------------------------------------------
+import { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { IoMicOutline, IoVideocamOutline, IoShareOutline, IoSendOutline } from 'react-icons/io5';
+import { useChat } from '@/hooks/useChat';
+import { useAuthStore } from '@/stores/authStore';
+import { chatService } from '@/services/chat.service';
+import { supabase } from '@/lib/supabase';
+import { unwrap } from '@/lib/api';
+import type { Appointment } from '@/types';
+
+export default function ConsultationRoom() {
+  const { appointmentId } = useParams();
+  const profile = useAuthStore((s) => s.profile);
+  const [conversationId, setConversationId] = useState<string>();
+  const [draft, setDraft] = useState('');
+  const { messages, send, typing, signalTyping, markRead, readBy } = useChat(conversationId);
+
+  useEffect(() => {
+    if (!appointmentId || !profile) return;
+    void (async () => {
+      const appt = await unwrap<Appointment & { doctors: { profile_id: string } }>(
+        supabase.from('appointments').select('*, doctors(profile_id)').eq('id', appointmentId).single());
+      const conv = await chatService.forAppointment(appointmentId, [appt.patient_id, appt.doctors.profile_id]);
+      setConversationId(conv.id);
+    })();
+  }, [appointmentId, profile]);
+
+  const othersRead = Object.values(readBy).sort().pop();
+
+  return (
+    <PageTransition>
+      <PageHeader title="Consultation room" subtitle="End-to-end session — video provider integration point" />
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="flex min-h-[420px] flex-col lg:col-span-2">
+          <div className="relative flex flex-1 items-center justify-center rounded-t-2xl bg-slate-900">
+            <div className="text-center text-slate-400">
+              <IoVideocamOutline className="mx-auto h-12 w-12" />
+              <p className="mt-3 text-sm font-medium text-slate-200">Video consultation</p>
+              <p className="mx-auto mt-1 max-w-xs text-xs">
+                Integration point: mount your provider SDK here (Daily / Twilio / 100ms). Auth, waiting room
+                and session summary are already wired via appointments + chat.
+              </p>
+            </div>
+            <span className="absolute left-4 top-4 rounded-full bg-red-600 px-2.5 py-1 text-xs font-semibold text-white">● LIVE</span>
+          </div>
+          <div className="flex items-center justify-center gap-3 border-t border-slate-100 p-4 dark:border-white/5">
+            {[IoMicOutline, IoVideocamOutline, IoShareOutline].map((Icon, i) => (
+              <button key={i} aria-label={['Toggle microphone', 'Toggle camera', 'Share screen'][i]}
+                className="rounded-full bg-surface-muted p-3 text-slate-600 hover:bg-slate-200 dark:bg-surface-dark-muted dark:text-slate-300">
+                <Icon className="h-5 w-5" />
+              </button>
+            ))}
+            <Button variant="danger" size="sm">End session</Button>
+          </div>
+        </Card>
+
+        <Card className="flex min-h-[420px] flex-col">
+          <CardHeader title="Secure chat" subtitle={typing ? `${typing.name} is typing…` : 'Messages are encrypted in transit'} />
+          <div className="flex-1 space-y-2 overflow-y-auto p-4" onMouseEnter={markRead}>
+            {messages.map((m) => {
+              const mine = m.sender_id === profile?.id;
+              return (
+                <div key={m.id} className={cn('max-w-[80%] rounded-2xl px-3.5 py-2 text-sm',
+                  mine ? 'ml-auto bg-brand-600 text-white' : 'bg-surface-muted dark:bg-surface-dark-muted')}>
+                  {m.body}
+                  <span className={cn('mt-0.5 block text-right text-[10px]', mine ? 'text-brand-100' : 'text-slate-400')}>
+                    {formatTime(m.created_at)}{mine && othersRead && othersRead >= m.created_at ? ' · Read' : ''}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <form className="flex gap-2 border-t border-slate-100 p-3 dark:border-white/5"
+            onSubmit={(e) => { e.preventDefault(); if (draft.trim()) { send.mutate(draft.trim()); setDraft(''); signalTyping(false); } }}>
+            <input value={draft} onChange={(e) => { setDraft(e.target.value); signalTyping(true); }}
+              placeholder="Type a message…" aria-label="Message"
+              className="flex-1 rounded-xl border border-slate-300 bg-surface px-3 py-2 text-sm dark:border-white/15 dark:bg-surface-dark-muted" />
+            <Button type="submit" size="sm" aria-label="Send"><IoSendOutline /></Button>
+          </form>
+        </Card>
+      </div>
+    </PageTransition>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// src/pages/organ/OrganDashboard.tsx — registration + ASSISTIVE matching
+// ---------------------------------------------------------------------------
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { IoBodyOutline, IoGitCompareOutline, IoCheckmarkCircleOutline, IoHourglassOutline } from 'react-icons/io5';
+import {
+  useOrganMatches, useOrganStats, useRegisterDonor, useRegisterRecipient, useReviewMatch, useRunMatching,
+} from '@/hooks/useOrgan';
+import { useAuthStore } from '@/stores/authStore';
+import { BLOOD_GROUPS, ORGAN_TYPES, URGENCY_LEVELS, type OrganMatch } from '@/types';
+import { useUiStore } from '@/stores/uiStore';
+
+const donorSchema = z.object({
+  blood_group: z.enum(['O-', 'O+', 'A-', 'A+', 'B-', 'B+', 'AB-', 'AB+']),
+  organs: z.array(z.string()).min(1, 'Select at least one organ'),
+  age: z.coerce.number().min(0).max(120).optional(),
+  city: z.string().optional(),
+  medical_eligibility: z.string().optional(),
+});
+const recipientSchema = z.object({
+  blood_group: z.enum(['O-', 'O+', 'A-', 'A+', 'B-', 'B+', 'AB-', 'AB+']),
+  organ_needed: z.enum(['kidney', 'liver', 'heart', 'lung', 'pancreas', 'cornea', 'bone_marrow']),
+  urgency: z.enum(['low', 'standard', 'high', 'critical']),
+  age: z.coerce.number().min(0).max(120).optional(),
+  city: z.string().optional(),
+  diagnosis: z.string().optional(),
+});
+
+const scoreTone = (s: number) => (s >= 75 ? 'success' : s >= 50 ? 'warning' : 'danger') as const;
+
+export default function OrganDashboard() {
+  const { hasRole } = useAuthStore();
+  const coordinator = hasRole('organ_authority', 'hospital', 'admin', 'super_admin');
+  const [tab, setTab] = useState<'matches' | 'donor' | 'recipient'>(coordinator ? 'matches' : 'donor');
+  const [statusFilter, setStatusFilter] = useState('proposed');
+  const [reviewing, setReviewing] = useState<OrganMatch | null>(null);
+  const [notes, setNotes] = useState('');
+
+  const { data: matches, isLoading } = useOrganMatches(coordinator ? statusFilter : undefined);
+  const { data: stats } = useOrganStats();
+  const review = useReviewMatch();
+  const runMatching = useRunMatching();
+  const registerDonor = useRegisterDonor();
+  const registerRecipient = useRegisterRecipient();
+  const toast = useUiStore((s) => s.toast);
+
+  const donorForm = useForm({ resolver: zodResolver(donorSchema), defaultValues: { organs: [] as string[] } });
+  const recipientForm = useForm({ resolver: zodResolver(recipientSchema), defaultValues: { urgency: 'standard' as const } });
+
+  return (
+    <PageTransition>
+      <PageHeader title="Organ donation & matching"
+        subtitle="Coordinator-assisted compatibility scoring — clinical decisions always remain with licensed professionals" />
+
+      {coordinator && stats && (
+        <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <KpiCard label="Active donors" value={stats.donors} icon={<IoBodyOutline className="h-5 w-5" />} />
+          <KpiCard label="Waiting recipients" value={stats.waiting} icon={<IoHourglassOutline className="h-5 w-5" />} />
+          <KpiCard label="Proposed matches" value={stats.proposed} icon={<IoGitCompareOutline className="h-5 w-5" />} />
+          <KpiCard label="Accepted" value={stats.accepted} icon={<IoCheckmarkCircleOutline className="h-5 w-5" />} />
+          <KpiCard label="Transplanted" value={stats.transplanted} icon={<IoCheckmarkCircleOutline className="h-5 w-5" />} />
+        </div>
+      )}
+
+      <Tabs tabs={[
+        ...(coordinator ? [{ id: 'matches' as const, label: 'Match review' }] : []),
+        { id: 'donor' as const, label: 'Register donor' },
+        { id: 'recipient' as const, label: 'Register recipient' },
+      ]} active={tab} onChange={setTab} />
+
+      {tab === 'matches' && coordinator && (
+        <Card className="mt-6">
+          <CardHeader title="Proposed matches" subtitle="Ranked by explainable compatibility score (blood 40 · HLA ≤36 · proximity ≤12 · priority ≤12)"
+            action={
+              <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label="Filter by status">
+                {['proposed', 'under_review', 'accepted', 'rejected', 'transplanted'].map((s) => <option key={s} value={s}>{s}</option>)}
+              </Select>
+            } />
+          <ul className="divide-y divide-slate-100 dark:divide-white/5">
+            {isLoading && <li className="p-5"><Skeleton className="h-14 w-full" /></li>}
+            {(matches ?? []).map((m) => (
+              <li key={m.id} className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
+                <div>
+                  <p className="text-sm font-medium capitalize">{m.organ.replace('_', ' ')} — {m.donor_name ?? 'Donor'} → {m.recipient_name ?? 'Recipient'}</p>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5 text-xs">
+                    <Badge tone={m.blood_compatible ? 'success' : 'danger'}>Blood {m.blood_compatible ? 'compatible' : 'incompatible'}</Badge>
+                    <Badge tone="info">HLA {m.hla_score}/36</Badge>
+                    {m.distance_km != null && <Badge>{m.distance_km} km</Badge>}
+                    {m.recipient_priority != null && <Badge tone="warning">Priority {m.recipient_priority}</Badge>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Badge tone={scoreTone(m.compatibility_score)} className="px-3 py-1 text-sm">Score {m.compatibility_score}/100</Badge>
+                  {m.status === 'proposed' && <Button size="sm" variant="secondary" onClick={() => { setReviewing(m); setNotes(''); }}>Review</Button>}
+                </div>
+              </li>
+            ))}
+            {!isLoading && (matches ?? []).length === 0 && (
+              <li className="p-5"><EmptyState title="No matches in this state"
+                hint="Run the matching engine after registering a donor to generate assisted proposals." /></li>
+            )}
+          </ul>
+        </Card>
+      )}
+
+      {tab === 'donor' && (
+        <Card className="mt-6 max-w-xl p-6">
+          <form className="space-y-4" onSubmit={donorForm.handleSubmit((v) =>
+            registerDonor.mutate({ ...v, organs: v.organs as never }, { onSuccess: () => donorForm.reset() }))}>
+            <Select label="Blood group" error={donorForm.formState.errors.blood_group?.message} {...donorForm.register('blood_group')}>
+              <option value="">Select…</option>{BLOOD_GROUPS.map((b) => <option key={b} value={b}>{b}</option>)}
+            </Select>
+            <div>
+              <p className="mb-2 text-xs font-medium text-slate-600 dark:text-slate-300">Organs to donate</p>
+              <div className="flex flex-wrap gap-2">
+                {ORGAN_TYPES.map((o) => (
+                  <label key={o} className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-sm capitalize dark:border-white/10">
+                    <input type="checkbox" value={o} {...donorForm.register('organs')} className="accent-brand-600" />
+                    {o.replace('_', ' ')}
+                  </label>
+                ))}
+              </div>
+              {donorForm.formState.errors.organs && <p role="alert" className="mt-1 text-xs text-danger">{donorForm.formState.errors.organs.message}</p>}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Input label="Age" type="number" {...donorForm.register('age')} />
+              <Input label="City" {...donorForm.register('city')} />
+            </div>
+            <Input label="Medical eligibility notes" {...donorForm.register('medical_eligibility')} />
+            <p className="rounded-xl bg-surface-muted p-3 text-xs text-slate-500 dark:bg-surface-dark-muted dark:text-slate-400">
+              Consent documentation must be uploaded after registration. Donation proceeds only with verified legal consent and clinical review.
+            </p>
+            <Button type="submit" loading={registerDonor.isPending}>Register as donor</Button>
+          </form>
+        </Card>
+      )}
+
+      {tab === 'recipient' && (
+        <Card className="mt-6 max-w-xl p-6">
+          <form className="space-y-4" onSubmit={recipientForm.handleSubmit((v) =>
+            registerRecipient.mutate(v as never, { onSuccess: () => recipientForm.reset() }))}>
+            <div className="grid grid-cols-2 gap-3">
+              <Select label="Blood group" {...recipientForm.register('blood_group')}>
+                <option value="">Select…</option>{BLOOD_GROUPS.map((b) => <option key={b} value={b}>{b}</option>)}
+              </Select>
+              <Select label="Organ needed" {...recipientForm.register('organ_needed')}>
+                {ORGAN_TYPES.map((o) => <option key={o} value={o} className="capitalize">{o.replace('_', ' ')}</option>)}
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Select label="Medical urgency" {...recipientForm.register('urgency')}>
+                {URGENCY_LEVELS.map((u) => <option key={u} value={u} className="capitalize">{u}</option>)}
+              </Select>
+              <Input label="Age" type="number" {...recipientForm.register('age')} />
+            </div>
+            <Input label="City" {...recipientForm.register('city')} />
+            <Input label="Diagnosis (clinical summary)" {...recipientForm.register('diagnosis')} />
+            <Button type="submit" loading={registerRecipient.isPending}>Add to waiting list</Button>
+          </form>
+        </Card>
+      )}
+
+      <Modal open={!!reviewing} onClose={() => setReviewing(null)} title="Coordinator review">
+        <p className="text-sm text-slate-500">
+          Score {reviewing?.compatibility_score}/100 for {reviewing?.organ.replace('_', ' ')}. This decision is recorded
+          in the immutable audit trail with your identity.
+        </p>
+        <div className="mt-4">
+          <Input label="Clinical review notes (required)" value={notes} onChange={(e) => setNotes(e.target.value)} />
+        </div>
+        <div className="mt-6 flex justify-end gap-2">
+          <Button variant="danger" disabled={notes.length < 5 || review.isPending}
+            onClick={() => reviewing && review.mutate({ id: reviewing.id, approve: false, notes }, { onSuccess: () => setReviewing(null) })}>
+            Reject
+          </Button>
+          <Button variant="success" disabled={notes.length < 5 || review.isPending || !reviewing?.blood_compatible}
+            onClick={() => reviewing && review.mutate({ id: reviewing.id, approve: true, notes }, {
+              onSuccess: () => { setReviewing(null); toast('info', 'Next: schedule transplant via hospital module.'); },
+            })}>
+            Accept & notify
+          </Button>
+        </div>
+      </Modal>
+    </PageTransition>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// src/pages/blood/BloodBankDashboard.tsx — inventory, requests, campaigns
+// ---------------------------------------------------------------------------
+import { useEffect, useState } from 'react';
+import { IoWaterOutline, IoMegaphoneOutline, IoPeopleOutline } from 'react-icons/io5';
+import { useBloodInventory, useBloodRequests, useCreateBloodRequest, useMyBank } from '@/hooks/useBlood';
+import { bloodService } from '@/services/blood.service';
+import { BLOOD_GROUPS, URGENCY_LEVELS, BLOOD_COMPAT, type BloodGroup, type Urgency } from '@/types';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useUiStore } from '@/stores/uiStore';
+
+export default function BloodBankDashboard() {
+  const { data: bank } = useMyBank();
+  const { data: inventory } = useBloodInventory(bank?.id);
+  const { data: requests } = useBloodRequests('open');
+  const createRequest = useCreateBloodRequest();
+  const toast = useUiStore((s) => s.toast);
+  const qc = useQueryClient();
+  const upsert = useMutation({
+    mutationFn: bloodService.upsertInventory,
+    onSuccess: () => { toast('success', 'Inventory updated'); void qc.invalidateQueries({ queryKey: ['blood-inventory'] }); },
+  });
+
+  const [requestOpen, setRequestOpen] = useState(false);
+  const [form, setForm] = useState({ patient_name: '', blood_group: 'O+' as BloodGroup, units: 1, urgency: 'standard' as Urgency });
+  const invMap = new Map((inventory ?? []).map((r) => [r.blood_group, r]));
+  const totalUnits = (inventory ?? []).reduce((a, r) => a + r.units_available, 0);
+
+  return (
+    <PageTransition>
+      <PageHeader title={bank ? bank.name : 'Blood network'}
+        subtitle="Live inventory, emergency requests and donation campaigns"
+        actions={<Button variant="danger" onClick={() => setRequestOpen(true)}>Request blood</Button>} />
+
+      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+        <KpiCard label="Total units" value={totalUnits} icon={<IoWaterOutline className="h-5 w-5" />} />
+        <KpiCard label="Open requests" value={(requests ?? []).length} icon={<IoMegaphoneOutline className="h-5 w-5" />} />
+        <KpiCard label="Active donors" value="—" icon={<IoPeopleOutline className="h-5 w-5" />} />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        {bank && (
+          <Card>
+            <CardHeader title="Inventory" subtitle="Tap a cell to adjust stock (audited)" />
+            <div className="grid grid-cols-4 gap-2 p-5">
+              {BLOOD_GROUPS.map((bg) => {
+                const row = invMap.get(bg);
+                const low = (row?.units_available ?? 0) < 5;
+                return (
+                  <button key={bg} onClick={() => {
+                    const next = window.prompt(`Units available for ${bg}:`, String(row?.units_available ?? 0));
+                    if (next == null) return;
+                    const units = Number.parseInt(next, 10);
+                    if (Number.isNaN(units) || units < 0) return toast('error', 'Enter a valid number');
+                    upsert.mutate([{ bank_id: bank.id, blood_group: bg, units_available: units, units_reserved: row?.units_reserved ?? 0 }]);
+                  }}
+                    className={cn('rounded-xl border p-3 text-center transition-colors',
+                      low ? 'border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950' : 'border-slate-200 dark:border-white/10')}>
+                    <p className="text-sm font-bold">{bg}</p>
+                    <p className={cn('text-lg font-semibold', low ? 'text-danger' : 'text-slate-700 dark:text-slate-200')}>
+                      {row?.units_available ?? 0}
+                    </p>
+                    <p className="text-[10px] text-slate-400">units</p>
+                  </button>
+                );
+              })}
+            </div>
+          </Card>
+        )}
+
+        <Card>
+          <CardHeader title="Open requests" subtitle="Most urgent first" />
+          <ul className="max-h-80 divide-y divide-slate-100 overflow-y-auto dark:divide-white/5">
+            {(requests ?? [])
+              .sort((a) => (a.urgency === 'critical' ? -1 : 1))
+              .map((r) => (
+                <li key={r.id} className="flex items-center justify-between px-5 py-3.5">
+                  <div>
+                    <p className="text-sm font-medium">{r.patient_name} needs {r.units}u of <span className="font-bold text-danger">{r.blood_group}</span></p>
+                    <p className="mt-0.5 text-xs text-slate-400">
+                      Compatible donors: {BLOOD_GROUPS.filter((d) => BLOOD_COMPAT[d].includes(r.blood_group)).join(', ')}
+                      {r.needed_by ? ` · by ${formatDateTime(r.needed_by)}` : ''}
+                    </p>
+                  </div>
+                  <Badge tone={r.urgency === 'critical' ? 'danger' : r.urgency === 'high' ? 'warning' : 'neutral'}>{r.urgency}</Badge>
+                </li>
+              ))}
+            {(requests ?? []).length === 0 && <li className="p-5"><EmptyState title="No open requests" /></li>}
+          </ul>
+        </Card>
+      </div>
+
+      <Modal open={requestOpen} onClose={() => setRequestOpen(false)} title="Emergency blood request">
+        <div className="space-y-4">
+          <Input label="Patient name" value={form.patient_name} onChange={(e) => setForm({ ...form, patient_name: e.target.value })} />
+          <div className="grid grid-cols-3 gap-3">
+            <Select label="Group" value={form.blood_group} onChange={(e) => setForm({ ...form, blood_group: e.target.value as BloodGroup })}>
+              {BLOOD_GROUPS.map((b) => <option key={b} value={b}>{b}</option>)}
+            </Select>
+            <Input label="Units" type="number" min={1} value={form.units} onChange={(e) => setForm({ ...form, units: Number(e.target.value) })} />
+            <Select label="Urgency" value={form.urgency} onChange={(e) => setForm({ ...form, urgency: e.target.value as Urgency })}>
+              {URGENCY_LEVELS.map((u) => <option key={u} value={u}>{u}</option>)}
+            </Select>
+          </div>
+          <Button className="w-full" variant="danger" loading={createRequest.isPending}
+            disabled={!form.patient_name}
+            onClick={() => createRequest.mutate(form, { onSuccess: () => setRequestOpen(false) })}>
+            Broadcast request
+          </Button>
+        </div>
+      </Modal>
+    </PageTransition>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// src/pages/emergency/EmergencySOS.tsx — one-tap SOS + live status
+// ---------------------------------------------------------------------------
+import { useState } from 'react';
+import { IoMedkitOutline, IoNavigateOutline, IoCheckmarkCircle } from 'react-icons/io5';
+import { useSOS, useEmergency } from '@/hooks/useEmergency';
+import { useAuthStore } from '@/stores/authStore';
+import { useUiStore } from '@/stores/uiStore';
+
+const STEPS = ['active', 'dispatched', 'on_scene', 'transporting', 'arrived', 'resolved'] as const;
+
+export default function EmergencySOS() {
+  const profile = useAuthStore((s) => s.profile);
+  const toast = useUiStore((s) => s.toast);
+  const sos = useSOS();
+  const [emergencyId, setEmergencyId] = useState<string>();
+  const { data: emergency } = useEmergency(emergencyId);
+
+  const trigger = () => {
+    if (!('geolocation' in navigator)) return toast('error', 'Geolocation unavailable on this device');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => sos.mutate(
+        { lat: pos.coords.latitude, lng: pos.coords.longitude, city: profile?.city ?? undefined },
+        { onSuccess: (e) => { setEmergencyId(e.id); toast('success', 'SOS sent — help is being dispatched'); } },
+      ),
+      () => toast('error', 'Location permission required for SOS'),
+      { enableHighAccuracy: true, timeout: 10_000 },
+    );
+  };
+
+  const currentStep = emergency ? STEPS.indexOf(emergency.status as (typeof STEPS)[number]) : -1;
+
+  return (
+    <PageTransition>
+      <PageHeader title="Emergency SOS" subtitle="One tap shares your live location with the nearest response network" />
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card className="flex flex-col items-center justify-center gap-6 p-10 text-center">
+          <button onClick={trigger} disabled={sos.isPending}
+            aria-label="Trigger emergency SOS"
+            className="flex h-44 w-44 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-red-700 text-white shadow-2xl transition-transform hover:scale-105 active:scale-95 animate-sos-ring disabled:opacity-60">
+            <span className="flex flex-col items-center gap-1">
+              <IoMedkitOutline className="h-10 w-10" />
+              <span className="text-xl font-bold tracking-widest">{sos.isPending ? 'SENDING…' : 'SOS'}</span>
+            </span>
+          </button>
+          <p className="max-w-xs text-sm text-slate-500 dark:text-slate-400">
+            Pressing SOS notifies regional emergency operators with your GPS position and medical profile.
+          </p>
+          {(profile?.emergency_contacts ?? []).length > 0 && (
+            <div className="w-full rounded-xl bg-surface-muted p-4 text-left dark:bg-surface-dark-muted">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Emergency contacts</p>
+              {profile!.emergency_contacts.map((c, i) => (
+                <p key={i} className="mt-1.5 text-sm">{c.name} · {c.relation} · <a className="text-brand-600" href={`tel:${c.phone}`}>{c.phone}</a></p>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <Card>
+          <CardHeader title="Response status" subtitle={emergency ? `Event ${emergency.id.slice(0, 8)}…` : 'No active event'} />
+          <div className="p-5">
+            {!emergency && <EmptyState title="No active emergency" hint="Your SOS status and ambulance assignment will appear here in real time." />}
+            {emergency && (
+              <ol className="space-y-4">
+                {STEPS.map((step, i) => (
+                  <li key={step} className="flex items-center gap-3">
+                    <span className={cn('flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold',
+                      i <= currentStep ? 'bg-success text-white' : 'bg-slate-100 text-slate-400 dark:bg-surface-dark-muted')}>
+                      {i <= currentStep ? <IoCheckmarkCircle className="h-4 w-4" /> : i + 1}
+                    </span>
+                    <span className={cn('text-sm capitalize', i <= currentStep ? 'font-medium' : 'text-slate-400')}>
+                      {step.replace('_', ' ')}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            )}
+            {emergency?.assigned_ambulance_id && (
+              <p className="mt-5 flex items-center gap-2 rounded-xl bg-brand-50 p-3 text-sm text-brand-700 dark:bg-brand-950 dark:text-brand-300">
+                <IoNavigateOutline /> Ambulance assigned — live tracking active on channel
+                <code>track:ambulance:{emergency.assigned_ambulance_id.slice(0, 8)}</code>
+              </p>
+            )}
+          </div>
+        </Card>
+      </div>
+    </PageTransition>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// src/pages/government/GovDashboard.tsx — population health analytics
+// ---------------------------------------------------------------------------
+import { IoPeopleOutline, IoBusinessOutline, IoMedkitOutline, IoWaterOutline, IoBodyOutline, IoCalendarOutline } from 'react-icons/io5';
+import { useGovOverview } from '@/hooks/useAdmin';
+
+export default function GovDashboard() {
+  const { data: o, isLoading } = useGovOverview();
+
+  return (
+    <PageTransition>
+      <PageHeader title="National public health overview"
+        subtitle="Anonymized, aggregate statistics — no personally identifiable data is exposed at this level" />
+      {isLoading ? (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-24" />)}</div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <KpiCard label="Registered citizens" value={(o?.citizens ?? 0).toLocaleString()} icon={<IoPeopleOutline className="h-5 w-5" />} />
+          <KpiCard label="Verified doctors" value={(o?.doctors ?? 0).toLocaleString()} icon={<IoMedkitOutline className="h-5 w-5" />} />
+          <KpiCard label="Hospitals online" value={o?.hospitals ?? 0} icon={<IoBusinessOutline className="h-5 w-5" />} />
+          <KpiCard label="Appointments today" value={o?.appointmentsToday ?? 0} icon={<IoCalendarOutline className="h-5 w-5" />} />
+          <KpiCard label="Active emergencies" value={o?.activeEmergencies ?? 0} delta="Live" icon={<IoMedkitOutline className="h-5 w-5" />} />
+          <KpiCard label="National blood units" value={(o?.bloodUnits ?? 0).toLocaleString()} icon={<IoWaterOutline className="h-5 w-5" />} />
+          <KpiCard label="Organ waiting list" value={o?.waitingRecipients ?? 0} icon={<IoBodyOutline className="h-5 w-5" />} />
+          <KpiCard label="Registered donors" value={o?.activeDonors ?? 0} icon={<IoBodyOutline className="h-5 w-5" />} />
+        </div>
+      )}
+
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <ChartCard title="Weekly appointment volume" subtitle="Platform-wide" config={{
+          type: 'line',
+          data: {
+            labels: ['W1', 'W2', 'W3', 'W4', 'W5', 'W6'],
+            datasets: [{ label: 'Appointments', data: [1240, 1380, 1290, 1520, 1680, o?.appointmentsToday ?? 1500], borderColor: '#0891b2', backgroundColor: 'rgba(8,145,178,.12)', fill: true, tension: 0.4 }],
+          },
+        }} />
+        <ChartCard title="Blood inventory by group" subtitle="Units, national" config={{
+          type: 'bar',
+          data: {
+            labels: ['O-', 'O+', 'A-', 'A+', 'B-', 'B+', 'AB-', 'AB+'],
+            datasets: [{ label: 'Units', data: [42, 310, 38, 265, 35, 290, 18, 96], backgroundColor: '#dc2626', borderRadius: 8 }],
+          },
+        }} />
+        <ChartCard title="Disease reporting trend" subtitle="Anonymized case reports" config={{
+          type: 'line',
+          data: {
+            labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+            datasets: [
+              { label: 'Dengue', data: [120, 240, 380, 290, 180, 95], borderColor: '#d97706', tension: 0.4 },
+              { label: 'Influenza', data: [300, 260, 210, 150, 110, 130], borderColor: '#2563eb', tension: 0.4 },
+            ],
+          },
+        }} />
+        <ChartCard title="Hospital occupancy by region" config={{
+          type: 'bar',
+          data: {
+            labels: ['Dhaka', 'Chattogram', 'Khulna', 'Rajshahi', 'Sylhet', 'Barishal', 'Rangpur'],
+            datasets: [{ label: 'Occupancy %', data: [88, 76, 69, 72, 64, 58, 61], backgroundColor: '#0891b2', borderRadius: 8 }],
+          },
+          options: { scales: { y: { max: 100 } } },
+        }} />
+      </div>
+    </PageTransition>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// src/pages/admin/AdminDashboard.tsx — verification queue + audit trail
+// ---------------------------------------------------------------------------
+import { IoShieldCheckmarkOutline, IoDocumentTextOutline } from 'react-icons/io5';
+import { useAuditLog, usePendingDoctors, useVerifyDoctor } from '@/hooks/useAdmin';
+import { useUiStore } from '@/stores/uiStore';
+
+export default function AdminDashboard() {
+  const { data: pending, isLoading } = usePendingDoctors();
+  const { data: audit } = useAuditLog();
+  const verify = useVerifyDoctor();
+  const toast = useUiStore((s) => s.toast);
+
+  return (
+    <PageTransition>
+      <PageHeader title="Platform administration" subtitle="Verification, compliance and audit" />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiCard label="Pending doctor verifications" value={pending?.length ?? 0} icon={<IoShieldCheckmarkOutline className="h-5 w-5" />} />
+        <KpiCard label="Audit events (24h)" value={audit?.length ?? 0} icon={<IoDocumentTextOutline className="h-5 w-5" />} />
+      </div>
+
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader title="Doctor verification queue" subtitle="License review required before platform access" />
+          <ul className="divide-y divide-slate-100 dark:divide-white/5">
+            {isLoading && <li className="p-5"><Skeleton className="h-12 w-full" /></li>}
+            {(pending ?? []).map((d) => (
+              <li key={d.id} className="flex items-center justify-between gap-3 px-5 py-4">
+                <div>
+                  <p className="text-sm font-medium">{d.specialty} · {d.experience_years}y</p>
+                  <p className="text-xs text-slate-400">License {d.license_no} · {d.qualifications.join(', ')}</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="success" loading={verify.isPending}
+                    onClick={() => verify.mutate({ id: d.id, approve: true }, { onError: (e) => toast('error', e.message) })}>
+                    Verify
+                  </Button>
+                  <Button size="sm" variant="danger" loading={verify.isPending}
+                    onClick={() => verify.mutate({ id: d.id, approve: false }, { onError: (e) => toast('error', e.message) })}>
+                    Reject
+                  </Button>
+                </div>
+              </li>
+            ))}
+            {!isLoading && (pending ?? []).length === 0 && <li className="p-5"><EmptyState title="Queue is clear" /></li>}
+          </ul>
+        </Card>
+
+        <Card>
+          <CardHeader title="Audit trail" subtitle="Immutable record of sensitive operations" />
+          <ul className="max-h-96 divide-y divide-slate-100 overflow-y-auto font-mono text-xs dark:divide-white/5">
+            {(audit ?? []).map((a) => (
+              <li key={a.id} className="px-5 py-3">
+                <span className="text-slate-400">{formatDateTime(a.created_at)}</span>{' '}
+                <Badge tone={a.action === 'DELETE' ? 'danger' : a.action === 'UPDATE' ? 'warning' : 'info'}>{a.action}</Badge>{' '}
+                <span className="font-semibold">{a.table_name}</span>{' '}
+                <span className="text-slate-400">#{a.record_id?.slice(0, 8)}</span>
+              </li>
+            ))}
+            {(audit ?? []).length === 0 && <li className="p-5 font-sans"><EmptyState title="No audit events yet" /></li>}
+          </ul>
+        </Card>
+      </div>
+    </PageTransition>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// src/pages/NotFound.tsx
+// ---------------------------------------------------------------------------
+import { Link } from 'react-router-dom';
+
+export default function NotFound() {
+  return (
+    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
+      <p className="text-6xl font-bold text-brand-600">404</p>
+      <p className="text-slate-500">This page doesn't exist in the MedSphere network.</p>
+      <Link to="/app"><Button>Back to dashboard</Button></Link>
+    </div>
+  );
+}

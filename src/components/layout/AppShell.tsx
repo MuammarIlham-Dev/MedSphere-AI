@@ -1,0 +1,189 @@
+import type { ReactNode } from 'react';
+import { ToastHost } from '@/components/ui/ToastHost';
+import { ThemeToggle } from '@/components/ui/ToastHost';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import {
+  IoGridOutline, IoCalendarOutline, IoVideocamOutline, IoWaterOutline,
+  IoBodyOutline, IoMedkitOutline, IoStatsChartOutline,
+  IoNotificationsOutline, IoMenuOutline, IoLogOutOutline, IoShieldCheckmarkOutline,
+  IoBusinessOutline, IoSearchOutline,
+} from 'react-icons/io5';
+import { cn, initials, timeAgo } from '@/lib/utils';
+import { useAuthStore } from '@/stores/authStore';
+import { useUiStore } from '@/stores/uiStore';
+import { useNotifications } from '@/hooks/useNotifications';
+import type { Role } from '@/types';
+
+interface NavItem { to: string; label: string; icon: ReactNode }
+
+const NAV: Partial<Record<Role, NavItem[]>> = {
+  citizen: [
+    { to: '/app/citizen', label: 'Dashboard', icon: <IoGridOutline /> },
+    { to: '/app/directory', label: 'Find a Doctor', icon: <IoSearchOutline /> },
+    { to: '/app/appointments', label: 'Appointments', icon: <IoCalendarOutline /> },
+    { to: '/app/consult', label: 'Telemedicine', icon: <IoVideocamOutline /> },
+    { to: '/app/blood', label: 'Blood', icon: <IoWaterOutline /> },
+    { to: '/app/organ', label: 'Organ Donation', icon: <IoBodyOutline /> },
+    { to: '/app/emergency', label: 'Emergency SOS', icon: <IoMedkitOutline /> },
+  ],
+  doctor: [
+    { to: '/app/doctor', label: 'Dashboard', icon: <IoGridOutline /> },
+    { to: '/app/appointments', label: 'Schedule', icon: <IoCalendarOutline /> },
+    { to: '/app/consult', label: 'Consultations', icon: <IoVideocamOutline /> },
+  ],
+  hospital: [
+    { to: '/app/hospital', label: 'Overview', icon: <IoBusinessOutline /> },
+    { to: '/app/organ', label: 'Organ Coordination', icon: <IoBodyOutline /> },
+    { to: '/app/blood', label: 'Blood Bank', icon: <IoWaterOutline /> },
+  ],
+  laboratory: [{ to: '/app/laboratory', label: 'Laboratory', icon: <IoMedkitOutline /> }],
+  pharmacy: [{ to: '/app/pharmacy', label: 'Pharmacy', icon: <IoMedkitOutline /> }],
+  blood_bank: [{ to: '/app/blood', label: 'Blood Bank', icon: <IoWaterOutline /> }],
+  organ_authority: [{ to: '/app/organ', label: 'Matching Engine', icon: <IoBodyOutline /> }],
+  emergency_operator: [{ to: '/app/emergency', label: 'Emergencies', icon: <IoMedkitOutline /> }],
+  government: [{ to: '/app/gov', label: 'Public Health', icon: <IoStatsChartOutline /> }],
+  researcher: [{ to: '/app/research', label: 'Research Data', icon: <IoStatsChartOutline /> }],
+  admin: [
+    { to: '/app/admin', label: 'Admin', icon: <IoShieldCheckmarkOutline /> },
+    { to: '/app/gov', label: 'Analytics', icon: <IoStatsChartOutline /> },
+  ],
+  super_admin: [
+    { to: '/app/admin', label: 'Admin', icon: <IoShieldCheckmarkOutline /> },
+    { to: '/app/gov', label: 'Analytics', icon: <IoStatsChartOutline /> },
+    { to: '/app/organ', label: 'Organ Network', icon: <IoBodyOutline /> },
+  ],
+};
+
+function NotificationBell() {
+  const { data, unread } = useNotifications();
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button
+        onClick={() => { setOpen((o) => !o); }}
+        aria-label={`Notifications${unread > 0 ? `, ${String(unread)} unread` : ''}`}
+        className="relative rounded-xl p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-surface-dark-muted">
+        <IoNotificationsOutline className="h-5 w-5" />
+        {unread > 0 && (
+          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold text-white">
+            {unread > 9 ? '9+' : unread}
+          </span>
+        )}
+      </button>
+      {open && (
+        <div className="absolute right-0 z-40 mt-2 w-80 overflow-hidden rounded-2xl border border-slate-200 bg-surface shadow-card dark:border-white/10 dark:bg-surface-dark-soft">
+          <p className="border-b border-slate-100 px-4 py-3 text-sm font-semibold dark:border-white/5">Notifications</p>
+          <ul className="max-h-80 overflow-y-auto">
+            {(data ?? []).slice(0, 12).map((n) => (
+              <li key={n.id} className={cn('px-4 py-3 text-sm', !n.read_at && 'bg-brand-50/50 dark:bg-brand-950/30')}>
+                <p className="font-medium text-slate-800 dark:text-slate-100">{n.title}</p>
+                {n.body && <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">{n.body}</p>}
+                <p className="mt-1 text-[10px] uppercase tracking-wide text-slate-400">{timeAgo(n.created_at)}</p>
+              </li>
+            ))}
+            {(data ?? []).length === 0 && <li className="px-4 py-8 text-center text-sm text-slate-400">You're all caught up</li>}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function AppShell() {
+  const { profile, signOut } = useAuthStore();
+  const { sidebarOpen, setSidebarOpen } = useUiStore();
+  const navigate = useNavigate();
+  const items = useMemo(() => (profile ? (NAV[profile.role] ?? NAV.citizen ?? []) : []), [profile]);
+
+  const nav = (
+    <nav aria-label="Primary" className="flex flex-1 flex-col gap-1 p-3">
+      {items.map((item) => (
+        <NavLink key={item.to} to={item.to} end
+          className={({ isActive }) => cn(
+            'flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-colors [&_svg]:h-5 [&_svg]:w-5',
+            isActive
+              ? 'bg-brand-600 text-white shadow-lift'
+              : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-surface-dark-muted',
+          )}>
+          {item.icon}
+          {item.label}
+        </NavLink>
+      ))}
+    </nav>
+  );
+
+  return (
+    <div className="flex h-screen overflow-hidden">
+      {/* Desktop sidebar */}
+      <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-surface lg:flex dark:border-white/10 dark:bg-surface-dark-soft">
+        <div className="flex items-center gap-2.5 px-5 py-5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-lift">
+            <IoMedkitOutline className="h-5 w-5" />
+          </div>
+          <span className="text-lg font-semibold tracking-tight">MedSphere <span className="text-brand-600">AI</span></span>
+        </div>
+        {nav}
+        <div className="border-t border-slate-100 p-3 dark:border-white/5">
+          <button onClick={() => { void signOut().then(() => navigate('/login')); }}
+            className="flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-500 hover:bg-slate-100 dark:hover:bg-surface-dark-muted">
+            <IoLogOutOutline className="h-5 w-5" /> Sign out
+          </button>
+        </div>
+      </aside>
+
+      {/* Mobile drawer */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-40 lg:hidden">
+          <div className="absolute inset-0 bg-slate-950/50" onClick={() => { setSidebarOpen(false); }} aria-hidden="true" />
+          <aside className="absolute left-0 top-0 flex h-full w-64 flex-col bg-surface dark:bg-surface-dark-soft">
+            {/* Logo */}
+            <div className="flex items-center gap-2.5 px-5 py-5">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-lift">
+                <IoMedkitOutline className="h-5 w-5" />
+              </div>
+              <span className="text-lg font-semibold tracking-tight">MedSphere <span className="text-brand-600">AI</span></span>
+            </div>
+            {nav}
+            <div className="border-t border-slate-100 p-3 dark:border-white/5">
+              <button onClick={() => { setSidebarOpen(false); void signOut().then(() => navigate('/login')); }}
+                className="flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-500 hover:bg-slate-100 dark:hover:bg-surface-dark-muted">
+                <IoLogOutOutline className="h-5 w-5" /> Sign out
+              </button>
+            </div>
+          </aside>
+        </div>
+      )}
+
+      {/* Main column */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex items-center gap-3 border-b border-slate-200 bg-surface/80 px-4 py-3 backdrop-blur dark:border-white/10 dark:bg-surface-dark-soft/80">
+          <button className="rounded-xl p-2 hover:bg-slate-100 lg:hidden dark:hover:bg-surface-dark-muted"
+            onClick={() => { setSidebarOpen(true); }} aria-label="Open menu">
+            <IoMenuOutline className="h-5 w-5" />
+          </button>
+          <button onClick={() => navigate('/app/appointments')} aria-label="Global search"
+            className="hidden items-center gap-2 rounded-xl bg-surface-muted px-3.5 py-2 text-sm text-slate-400 sm:flex sm:w-72 dark:bg-surface-dark-muted">
+            <IoSearchOutline /> Search doctors, hospitals, medicines…
+          </button>
+          <div className="flex-1" />
+          <ThemeToggle />
+          <NotificationBell />
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-100 text-sm font-semibold text-brand-700 dark:bg-brand-900 dark:text-brand-200">
+              {profile ? initials(profile.full_name) : '…'}
+            </div>
+            <div className="hidden sm:block">
+              <p className="text-sm font-medium leading-tight">{profile?.full_name}</p>
+              <p className="text-xs capitalize leading-tight text-slate-400">{profile?.role.replace('_', ' ')}</p>
+            </div>
+          </div>
+        </header>
+        <main id="main" className="flex-1 overflow-y-auto p-4 sm:p-6">
+          <Outlet />
+        </main>
+      </div>
+      <ToastHost />
+    </div>
+  );
+}

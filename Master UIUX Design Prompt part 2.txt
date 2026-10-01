@@ -1,0 +1,183 @@
+Comprehensive UI/UX Design System & Master Brand Guidelines
+1. Brand Core, Visual Identity & Design Tokens
+Brand Archetype & Philosophy
+Archetype: The Caregiver + The Sage (Clinical Authority meets Deep Human Empathy).
+
+Tone of Voice: Authoritative, calming, precise, unhurried, and unambiguous.
+
+Vigour & Contrast: Deep arterial crimsons and burgundy hues establish specialized cardiac competence without the alarming fluorescence of emergency alerts. Surfaces maintain a sterile yet warm porcelain cleanliness.
+
+Color Tokens (Semantic & Primitive)
+Token Name	Hex Code	RGB / Alpha	Functional Role
+brand-dark-950	#120103	rgb(18, 1, 3)	Deepest canvas onboarding vignette
+brand-dark-900	#2A0407	rgb(42, 4, 7)	Dark-mode intermediate mesh gradient
+brand-burgundy	#4A0A10	rgb(74, 10, 16)	Onboarding top canopy and dark headers
+brand-crimson-800	#7D121B	rgb(125, 18, 27)	Hero gradient stop (end)
+brand-crimson-700	#8E1B23	rgb(142, 27, 35)	Primary brand action, active states, badges
+brand-crimson-600	#981D26	rgb(152, 29, 38)	Hero gradient start (top-left)
+brand-pulse-red	#DC2626	rgb(220, 38, 38)	ECG line highlights, vital alerts, unread dots
+brand-soft-rose	#FFF1F2	rgb(255, 241, 242)	Icon background tints, selected item halos
+surface-canvas	#FDFBFB	rgb(253, 251, 251)	Light screen primary background
+surface-card	#FFFFFF	rgb(255, 255, 255)	Elevated interactive cards and modals
+surface-subtle	#F8F9FA	rgb(248, 249, 250)	Input fills, inactive filter chips
+border-subtle	#F1ECEB	rgb(241, 236, 235)	Structural hairline card dividers
+text-headline	#111827	rgb(17, 24, 39)	Display titles, doctor names
+text-body	#4B5563	rgb(75, 85, 99)	Procedural descriptions, body copy
+text-muted	#9CA3AF	rgb(156, 163, 175)	Timestamps, IDs, metadata
+Typography Scale (Plus Jakarta Sans / SF Pro)
+Level	Size	Line Height	Weight	Tracking	Usage
+Display Hero	28px	34px	Bold (700)	-0.02em	Onboarding Hero Value Proposition
+H1 Screen Title	22px	28px	Bold (700)	-0.01em	"Book an Appointment" Dashboard
+H2 Card Title	16px	22px	SemiBold (600)	-0.005em	Cardiologist Consultation
+H3 Subsection	13px	18px	Bold (700)	0em	"What to Expect", "Visit Type"
+Body Regular	13px	18px	Regular (400)	0em	Clinical reassurance, service details
+Body Medium	12px	16px	Medium (500)	0em	Diagnostic names, doctor subtitles
+Caption Bold	10px	14px	Bold (700)	+0.02em	Duration tags, pill badges, active nav
+Micro Meta	9px	12px	Medium (500)	+0.04em	Doctor capacity tags, stepper dates
+2. Layout, Viewports & Structural Containers
+Spatial System
+Base Grid: 8px strict grid system (padding and margins follow 8px, 16px, 24px, 32px, 48px).
+
+Micro-Grid: 4px micro-adjustments for badge insets, avatar overlapping, and icon spacers.
+
+Mobile Viewport: 390 x 844 pt (iPhone native standard) with 42px corner radius and Dynamic Island clearance.
+
+Desktop / Tablet Extension: 12-column responsive fluid grid (max-width 1280px, 24px gutters, 32px margins).
+
+3. Component Anatomy & Interactive States
+A. Headers & App Bars
+Mobile Dashboard Header:
+
+Left Profile Cluster: 40x40px circular avatar with 1.5px solid #F1ECEB border. Paired with vertical text stack: "Good Morning," (10px Muted) over "Alex Morgan" (14px Bold Dark).
+
+Right Notification Anchor: 36x36px circular neutral button (#FFFFFF, border #F1ECEB) housing an outline bell glyph. Includes a 6x6px crimson badge pinned at top-right with a 2px white knockout border.
+
+Mobile Detail Nav Bar:
+
+Height: 44px touch zone.
+
+Left: Circular 36x36px pill housing a left-chevron glyph (stroke-width 2px).
+
+Right: Circular 36x36px pill housing a heart-bookmark glyph.
+
+Responsive Web/Desktop Header (Clinical Portal):
+
+Fixed 64px height, white surface with backdrop-blur-md and bottom hairline border.
+
+Contains CardioLife vector logo, global omni-search bar ("Search patients, procedures, doctors..."), and quick-triage action hub.
+
+B. Navigation Dock & Sidebars
+Persistent Mobile Bottom Nav Dock:
+
+Height: 68px + safe area inset bottom.
+
+Elevation: 0 -4px 20px rgba(0, 0, 0, 0.04).
+
+4 Tabs: Home (Active), Appointments, Reports, Profile.
+
+Active Tab Node: 32x32px pill in soft rose (#FFF1F2) with solid crimson icon (#8E1B23) and 9px bold label.
+
+Inactive Tabs: #9CA3AF outline icons, hover transition to #4B5563.
+
+Desktop Clinical Sidebar (Responsive View):
+
+Width: 260px expanded (72px collapsed rail).
+
+Active Indicator: Vertical 3px solid crimson bar on left edge with translucent soft-rose background highlight.
+
+C. Cards & Interactive Surfaces
+Hero Featured Schedule Card:
+
+Background: Linear-gradient(135deg, #981D26 0%, #7D121B 100%).
+
+Corner Radius: 20px; Padding: 16px.
+
+Top Row: 28x28px frosted white container (20% opacity) with white heart glyph + "Cardiologist Appointment" label.
+
+Top-Right Pill: Translucent black capsule (rgba(0,0,0,0.25)) displaying "10:00 - 10:30 AM".
+
+Middle Row: Overlapping 3-avatar stack (20x20px each, 1px dark ring) + "+3" counter + "5 Doctors available" label.
+
+Bottom Row: Divider line (1px white at 10% opacity) separating specialist meta ("Dr. James Anderson", "Senior Cardiologist") and a white circular action button with crimson chevron.
+
+Diagnostic Item Cards (Echocardiogram & TMT):
+
+Surface: #FFFFFF, border 1px solid #F1ECEB, 16px radius, padding 14px.
+
+Shadow: 0 2px 8px rgba(0, 0, 0, 0.04); Hover: 0 6px 16px rgba(0, 0, 0, 0.08).
+
+Header: 24x24px rose square icon fill with crimson glyph + Procedure Title + Right-aligned soft-gray pill with timestamp.
+
+Slot Availability: Avatar pills showing remaining open slots (e.g., "3 Slots available").
+
+Footer: Hairline divider + Facility Location Name + Right chevron.
+
+Progress Stepper Card:
+
+Surface: White card with header "Appointment Status" and pill tag "Confirmed" (#8E1B23 solid fill, white text).
+
+Timeline Stepper: Horizontal dashed track (#FCA5A5) connecting start node (10:00 AM) to end node (10:30 AM). Center features an elevated crimson circular node stamped with a white heart.
+
+Visit-Type Dual-Selection Module:
+
+Surface: Solid crimson container (#8E1B23) with header controls.
+
+Dual Selection Tiles:
+
+Selected (Initial Consultation, 30 min): White glass container (rgba(255,255,255,0.15)) with pure white circular forward arrow.
+
+Unselected (Follow-up, 20 min): Dark translucent container (rgba(0,0,0,0.20)) with muted white text.
+
+Procedural "What to Expect" Grid Tiles:
+
+4-column square cards (#FFFFFF, border 1px solid #F1ECEB, 12px radius).
+
+Centered icon in soft rose square over 2-line centered micro-label (Heart Checkup, ECG Test, Risk Assessment, Personalised Treatment).
+
+D. Buttons, Inputs & Controls
+Primary Action CTA (Onboarding):
+
+Gradient fill from #801019 to #590A10, white 13px semi-bold text, right chevron glyph, 16px pill radius.
+
+Emergency Heart Floating Action Button (FAB):
+
+48x48px circular white floating button with soft shadow, housing a 24x24px high-contrast crimson heart.
+
+Filter Pills:
+
+Active: Solid #8E1B23, white text, subtle shadow.
+
+Inactive: #F3F4F6 fill, #4B5563 text, smooth color fade on tap.
+
+Text & Search Inputs:
+
+Height: 44px; Fill: #F8F9FA; Border: 1px solid #F1ECEB; Focus: 1px solid #8E1B23 with a 3px crimson halo (rgba(142,27,35,0.12)).
+
+4. Animations, Effects & Micro-Interactions
+A. Animation Physics & Curves
+Press & Release Physics: Scale compression to 0.97 on touch-down over 120ms ease-out; spring rebound over 250ms with damping ratio 0.75.
+
+Page Transitions: Shared-element hero transition for the doctor portrait and appointment card (350ms, cubic-bezier(0.32, 0.72, 0, 1)).
+
+Skeleton Loader: Left-to-right linear gradient shimmer (rgba(255,255,255,0) to rgba(255,255,255,0.6) to rgba(255,255,255,0)) sweeping every 1.4s.
+
+B. ECG & Cardiac Heartbeat Pulse
+ECG Waveform Trace: SVG stroke dasharray infinitely scrolling leftward over 1800ms linear.
+
+3D Heart Ambient Beat: Subtle scale pulse between 1.00 and 1.03 following a biphasic systolic/diastolic rhythm (duration 900ms per cycle).
+
+C. Haptic Feedback Profile
+Primary CTA Tap: Light Impact Haptic (UIImpactFeedbackGenerator(style: .medium)).
+
+Selection Toggles (Filter Chips, Visit Types): Selection Tick (UISelectionFeedbackGenerator).
+
+Emergency Cardiac Trigger: Distinctive Double Pulse Haptic.
+
+5. Full-Screen UI/UX Itinerary
+Screen 1 (Onboarding): Atmospheric dark-burgundy viewport anchored by the brand mark, floating anatomical heart with active ECG, bold value messaging, and dual CTA dock.
+
+Screen 2 (Discovery Dashboard): Warm white surface, patient identity cluster, category filtering, solid crimson schedule hero card, diagnostic center directory, and persistent 4-node navigation dock.
+
+Screen 3 (Consultation Detail): Physician credential overview, two-node dashed timeline stepper, interactive crimson visit-type selector, 4-column procedure roadmap, and institutional reassurance footer strip.
+
+Screen 4 (Desktop / Tablet Extension): Responsive 12-column outpatient booking console uniting the collapsible sidebar, omni-search app bar, interactive calendar grid, and regulatory institutional footer.

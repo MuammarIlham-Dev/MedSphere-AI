@@ -1,0 +1,1087 @@
+// ============================================================================
+// MedSphere AI — core infrastructure: lib, stores, services, hooks
+// ============================================================================
+
+// ---------------------------------------------------------------------------
+// src/lib/env.ts
+// ---------------------------------------------------------------------------
+import { z } from 'zod';
+
+const EnvSchema = z.object({
+  VITE_SUPABASE_URL: z.string().url(),
+  VITE_SUPABASE_ANON_KEY: z.string().min(20),
+  VITE_TURNSTILE_SITE_KEY: z.string().default(''),
+  VITE_APP_NAME: z.string().default('MedSphere AI'),
+});
+
+const parsed = EnvSchema.safeParse(import.meta.env);
+if (!parsed.success) {
+  // Fail fast at boot — misconfigured env must never reach production traffic.
+  throw new Error(`Invalid environment: ${parsed.error.message}`);
+}
+
+export const env = {
+  supabaseUrl: parsed.data.VITE_SUPABASE_URL,
+  supabaseAnonKey: parsed.data.VITE_SUPABASE_ANON_KEY,
+  turnstileSiteKey: parsed.data.VITE_TURNSTILE_SITE_KEY,
+  appName: parsed.data.VITE_APP_NAME,
+  ablyAuthUrl: `${parsed.data.VITE_SUPABASE_URL}/functions/v1/ably-token`,
+  isProd: import.meta.env.PROD,
+};
+
+// ---------------------------------------------------------------------------
+// src/lib/supabase.ts
+// ---------------------------------------------------------------------------
+import { createClient } from '@supabase/supabase-js';
+// import type { Database } from '@/types/database.types'; // generated via `pnpm db:types`
+
+export const supabase = createClient(/* <Database> */ env.supabaseUrl, env.supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    flowType: 'pkce',
+  },
+  realtime: { params: { eventsPerSecond: 10 } },
+});
+
+// ---------------------------------------------------------------------------
+// src/lib/api.ts — thin error-normalizing wrapper over PostgREST
+// ---------------------------------------------------------------------------
+export class ApiError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+    public readonly details?: unknown,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+interface PostgrestLike<T> { data: T | null; error: { code?: string; message: string; details?: unknown } | null }
+
+export async function unwrap<T>(query: PromiseLike<PostgrestLike<T>>): Promise<T> {
+  const { data, error } = await query;
+  if (error) throw new ApiError(error.code ?? 'DB_ERROR', error.message, error.details);
+  return data as T;
+}
+
+// ---------------------------------------------------------------------------
+// src/lib/utils.ts
+// ---------------------------------------------------------------------------
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+import type { DoctorSchedule, TimeSlot } from '@/types';
+
+export const cn = (...inputs: ClassValue[]) => twMerge(clsx(inputs));
+
+export const formatDate = (iso: string) =>
+  new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(iso));
+
+export const formatDateTime = (iso: string) =>
+  new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
+
+export const formatTime = (iso: string) =>
+  new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
+
+export function timeAgo(iso: string): string {
+  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return 'just now';
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+}
+
+export const initials = (name: string) =>
+  name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase();
+
+/** Build bookable slots for a date from schedules minus taken start-times. */
+export function generateSlots(schedules: DoctorSchedule[], taken: string[], date: Date): TimeSlot[] {
+  const weekday = date.getDay();
+  const slots: TimeSlot[] = [];
+  for (const s of schedules.filter((x) => x.weekday === weekday && x.is_active)) {
+    const [sh, sm] = s.start_time.split(':').map(Number);
+    const [eh, em] = s.end_time.split(':').map(Number);
+    let cursor = new Date(date); cursor.setHours(sh ?? 0, sm ?? 0, 0, 0);
+    const end = new Date(date); end.setHours(eh ?? 0, em ?? 0, 0, 0);
+    while (cursor < end) {
+      const slotEnd = new Date(cursor.getTime() + s.slot_minutes * 60_000);
+      slots.push({
+        start: cursor.toISOString(),
+        end: slotEnd.toISOString(),
+        type: s.type,
+        available: !taken.some((t) => new Date(t).getTime() === cursor.getTime()) && cursor.getTime() > Date.now(),
+      });
+      cursor = slotEnd;
+    }
+  }
+  return slots;
+}
+
+export const isReducedMotion = () =>
+  typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ---------------------------------------------------------------------------
+// src/lib/gsap.ts — animation helpers, all reduced-motion aware
+// ---------------------------------------------------------------------------
+import { useLayoutEffect, type RefObject } from 'react';
+import gsap from 'gsap';
+
+export { gsap };
+
+/** Fade-and-rise page entrance. Attach ref to the page root. */
+export function usePageEnter<T extends HTMLElement>(ref: RefObject<T | null>) {
+  useLayoutEffect(() => {
+    if (!ref.current || isReducedMotion()) return;
+    const ctx = gsap.context(() => {
+      gsap.fromTo(ref.current, { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.45, ease: 'power2.out' });
+    }, ref);
+    return () => ctx.revert();
+  }, [ref]);
+}
+
+/** Stagger-reveal children matching `selector` when they mount. */
+export function useReveal<T extends HTMLElement>(ref: RefObject<T | null>, selector = '[data-reveal]') {
+  useLayoutEffect(() => {
+    if (!ref.current || isReducedMotion()) return;
+    const ctx = gsap.context(() => {
+      gsap.fromTo(
+        selector,
+        { opacity: 0, y: 14 },
+        { opacity: 1, y: 0, duration: 0.4, stagger: 0.06, ease: 'power2.out' },
+      );
+    }, ref);
+    return () => ctx.revert();
+  }, [ref, selector]);
+}
+
+// ---------------------------------------------------------------------------
+// src/lib/queryClient.ts
+// ---------------------------------------------------------------------------
+import { QueryClient } from '@tanstack/react-query';
+
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { staleTime: 30_000, retry: 2, refetchOnWindowFocus: true },
+    mutations: { retry: 0 },
+  },
+});
+
+// ---------------------------------------------------------------------------
+// src/lib/ably.ts — singleton realtime client (token auth via edge function)
+// ---------------------------------------------------------------------------
+import * as Ably from 'ably';
+import type { AblyEventMap } from '@/types';
+
+let realtime: Ably.Realtime | null = null;
+
+export function getAbly(): Ably.Realtime {
+  if (realtime) return realtime;
+  realtime = new Ably.Realtime({
+    authUrl: env.ablyAuthUrl,
+    authMethod: 'POST',
+    authHeaders: async () => {
+      const { data } = await supabase.auth.getSession();
+      return { authorization: `Bearer ${data.session?.access_token ?? ''}` };
+    },
+    clientId: supabase ? undefined : undefined, // set by token
+    autoConnect: true,
+    // Connection recovery: Ably resumes streams for up to 2 min after drops.
+    disconnectedRetryTimeout: 5_000,
+    suspendedRetryTimeout: 15_000,
+  });
+  return realtime;
+}
+
+export function ablyChannel<K extends keyof AblyEventMap>(name: string) {
+  return getAbly().channels.get(name);
+}
+
+export function publish<K extends keyof AblyEventMap>(channel: string, event: K, data: AblyEventMap[K]) {
+  return ablyChannel(channel).publish(event as string, data as never);
+}
+
+export function closeAbly() {
+  realtime?.close();
+  realtime = null;
+}
+
+// ---------------------------------------------------------------------------
+// src/stores/authStore.ts
+// ---------------------------------------------------------------------------
+import { create } from 'zustand';
+import type { Session } from '@supabase/supabase-js';
+import type { Profile, Role } from '@/types';
+
+type AuthStatus = 'loading' | 'signedOut' | 'signedIn';
+
+interface AuthState {
+  status: AuthStatus;
+  session: Session | null;
+  profile: Profile | null;
+  init: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
+  signOut: () => Promise<void>;
+  hasRole: (...roles: Role[]) => boolean;
+}
+
+export const useAuthStore = create<AuthState>((set, get) => ({
+  status: 'loading',
+  session: null,
+  profile: null,
+
+  init: async () => {
+    const { data } = await supabase.auth.getSession();
+    set({ session: data.session });
+    if (data.session) await get().refreshProfile();
+    set({ status: data.session ? 'signedIn' : 'signedOut' });
+
+    supabase.auth.onAuthStateChange(async (_event, session) => {
+      set({ session, status: session ? 'signedIn' : 'signedOut' });
+      if (session) await get().refreshProfile();
+      else set({ profile: null });
+      if (!session) closeAbly();
+    });
+  },
+
+  refreshProfile: async () => {
+    const { data: user } = await supabase.auth.getUser();
+    if (!user.user) return set({ profile: null });
+    const profile = await unwrap<Profile>(
+      supabase.from('profiles').select('*').eq('id', user.user.id).single(),
+    );
+    set({ profile });
+  },
+
+  signOut: async () => {
+    await supabase.auth.signOut();
+    closeAbly();
+    queryClient.clear();
+    set({ session: null, profile: null, status: 'signedOut' });
+  },
+
+  hasRole: (...roles) => {
+    const p = get().profile;
+    return !!p && roles.includes(p.role);
+  },
+}));
+
+// ---------------------------------------------------------------------------
+// src/stores/uiStore.ts
+// ---------------------------------------------------------------------------
+import { create } from 'zustand';
+
+export type Theme = 'light' | 'dark';
+export interface Toast { id: number; kind: 'success' | 'error' | 'info'; message: string }
+
+interface UiState {
+  theme: Theme;
+  sidebarOpen: boolean;
+  toasts: Toast[];
+  setTheme: (t: Theme) => void;
+  toggleTheme: () => void;
+  setSidebarOpen: (open: boolean) => void;
+  toast: (kind: Toast['kind'], message: string) => void;
+  dismiss: (id: number) => void;
+}
+
+const applyTheme = (t: Theme) => {
+  document.documentElement.classList.toggle('dark', t === 'dark');
+};
+
+let toastId = 0;
+
+export const useUiStore = create<UiState>((set, get) => ({
+  theme: 'light',
+  sidebarOpen: false,
+  toasts: [],
+  setTheme: (theme) => { applyTheme(theme); set({ theme }); },
+  toggleTheme: () => get().setTheme(get().theme === 'dark' ? 'light' : 'dark'),
+  setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
+  toast: (kind, message) => {
+    const id = ++toastId;
+    set((s) => ({ toasts: [...s.toasts, { id, kind, message }] }));
+    window.setTimeout(() => get().dismiss(id), 5_000);
+  },
+  dismiss: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
+}));
+
+// ---------------------------------------------------------------------------
+// src/services/auth.service.ts
+// ---------------------------------------------------------------------------
+export const authService = {
+  signInEmail: (email: string, password: string, captchaToken?: string) =>
+    supabase.auth.signInWithPassword({ email, password, options: { captchaToken } }),
+
+  signUpEmail: (email: string, password: string, fullName: string, role: string, captchaToken?: string) =>
+    supabase.auth.signUp({
+      email, password,
+      options: { data: { full_name: fullName, role }, captchaToken, emailRedirectTo: window.location.origin },
+    }),
+
+  signInGoogle: () =>
+    supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${window.location.origin}/app` } }),
+
+  sendPhoneOtp: (phone: string, captchaToken?: string) =>
+    supabase.auth.signInWithOtp({ phone, options: { captchaToken } }),
+
+  verifyPhoneOtp: (phone: string, token: string) =>
+    supabase.auth.verifyOtp({ phone, token, type: 'sms' }),
+
+  resetPassword: (email: string) =>
+    supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/reset` }),
+
+  /** True when user authenticated at AAL1 but must complete TOTP (AAL2). */
+  needsMfaChallenge: async () => {
+    const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    return data?.nextLevel === 'aal2' && data.currentLevel !== 'aal2';
+  },
+
+  verifyMfaTotp: async (code: string) => {
+    const factors = await supabase.auth.mfa.listFactors();
+    const totp = factors.data?.totp[0];
+    if (!totp) throw new ApiError('MFA_NONE', 'No TOTP factor enrolled');
+    const challenge = await supabase.auth.mfa.challenge({ factorId: totp.id });
+    if (challenge.error) throw challenge.error;
+    return supabase.auth.mfa.verify({ factorId: totp.id, challengeId: challenge.data.id, code });
+  },
+
+  enrollTotp: () => supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'MedSphere Authenticator' }),
+};
+
+// ---------------------------------------------------------------------------
+// src/services/doctor.service.ts
+// ---------------------------------------------------------------------------
+import type { DoctorCard, DoctorSearchFilters, DoctorSchedule } from '@/types';
+
+export const doctorService = {
+  async search(filters: DoctorSearchFilters): Promise<DoctorCard[]> {
+    let q = supabase
+      .from('doctors')
+      .select(`*, profiles!inner(full_name, avatar_url, gender), hospitals(name, city)`)
+      .eq('verification', 'verified')
+      .order('rating_avg', { ascending: false })
+      .limit(50);
+    if (filters.specialty) q = q.eq('specialty', filters.specialty);
+    if (filters.language) q = q.contains('languages', [filters.language]);
+    if (filters.query) q = q.ilike('profiles.full_name', `%${filters.query}%`);
+    if (filters.gender) q = q.eq('profiles.gender', filters.gender);
+    if (filters.city) q = q.eq('hospitals.city', filters.city);
+    if (filters.type === 'video') q = q.eq('video_enabled', true);
+    if (filters.type === 'clinic') q = q.eq('clinic_enabled', true);
+    const rows = await unwrap<any[]>(q);
+    return rows.map((r) => ({
+      ...r,
+      full_name: r.profiles.full_name,
+      avatar_url: r.profiles.avatar_url,
+      gender: r.profiles.gender,
+      hospital_name: r.hospitals?.name ?? null,
+      hospital_city: r.hospitals?.city ?? null,
+      profiles: undefined,
+      hospitals: undefined,
+    }));
+  },
+
+  async slots(doctorId: string, dateISO: string): Promise<TimeSlot[]> {
+    const date = new Date(dateISO);
+    const schedules = await unwrap<DoctorSchedule[]>(
+      supabase.from('doctor_schedules').select('*').eq('doctor_id', doctorId).eq('is_active', true),
+    );
+    const dayStart = new Date(date); dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(date); dayEnd.setHours(23, 59, 59, 999);
+    const booked = await unwrap<Array<{ scheduled_at: string }>>(
+      supabase.from('appointments').select('scheduled_at').eq('doctor_id', doctorId)
+        .gte('scheduled_at', dayStart.toISOString()).lte('scheduled_at', dayEnd.toISOString())
+        .not('status', 'in', '("cancelled","no_show")'),
+    );
+    return generateSlots(schedules, booked.map((b) => b.scheduled_at), date);
+  },
+};
+
+// ---------------------------------------------------------------------------
+// src/services/appointment.service.ts
+// ---------------------------------------------------------------------------
+import type { Appointment, AppointmentStatus, BookAppointmentInput } from '@/types';
+
+export const appointmentService = {
+  async book(input: BookAppointmentInput): Promise<Appointment> {
+    const uid = (await supabase.auth.getUser()).data.user?.id;
+    if (!uid) throw new ApiError('AUTH', 'Not signed in');
+    const dayStart = new Date(input.scheduled_at); dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(input.scheduled_at); dayEnd.setHours(23, 59, 59, 999);
+    const { count } = await supabase
+      .from('appointments').select('id', { count: 'exact', head: true })
+      .eq('doctor_id', input.doctor_id)
+      .gte('scheduled_at', dayStart.toISOString()).lte('scheduled_at', dayEnd.toISOString());
+    return unwrap<Appointment>(
+      supabase.from('appointments')
+        .insert({ ...input, patient_id: uid, token_number: (count ?? 0) + 1, status: 'booked' })
+        .select().single(),
+    );
+  },
+
+  mine: (): Promise<Appointment[]> =>
+    unwrap(supabase.from('appointments')
+      .select('*, doctors(specialty, profiles(full_name))')
+      .order('scheduled_at', { ascending: true }).limit(100))
+      .then((rows: any[]) =>
+        rows.map((r) => ({ ...r, doctor_name: r.doctors?.profiles?.full_name, specialty: r.doctors?.specialty, doctors: undefined }))),
+
+  todayQueue: async (doctorId: string): Promise<Appointment[]> => {
+    const start = new Date(); start.setHours(0, 0, 0, 0);
+    const end = new Date(); end.setHours(23, 59, 59, 999);
+    return unwrap(supabase.from('appointments')
+      .select('*, profiles!appointments_patient_id_fkey(full_name)')
+      .eq('doctor_id', doctorId)
+      .gte('scheduled_at', start.toISOString()).lte('scheduled_at', end.toISOString())
+      .order('token_number'))
+      .then((rows: any[]) => rows.map((r) => ({ ...r, patient_name: r.profiles?.full_name, profiles: undefined })));
+  },
+
+  setStatus: (id: string, status: AppointmentStatus, cancelReason?: string) =>
+    unwrap(supabase.from('appointments')
+      .update({ status, ...(cancelReason ? { cancel_reason: cancelReason } : {}) })
+      .eq('id', id).select().single()),
+
+  reschedule: (id: string, when: string) =>
+    unwrap(supabase.from('appointments').update({ scheduled_at: when, status: 'rescheduled' }).eq('id', id).select().single()),
+};
+
+// ---------------------------------------------------------------------------
+// src/services/organ.service.ts
+// ---------------------------------------------------------------------------
+import type { OrganDonor, OrganMatch, OrganRecipient, OrganStats, RegisterDonorInput, RegisterRecipientInput } from '@/types';
+
+export const organService = {
+  registerDonor: async (input: RegisterDonorInput): Promise<OrganDonor> => {
+    const uid = (await supabase.auth.getUser()).data.user?.id;
+    return unwrap(supabase.from('organ_donors')
+      .insert({ ...input, profile_id: uid, consent: input.consent_file_id ? 'granted' : 'pending' })
+      .select().single());
+  },
+
+  registerRecipient: async (input: RegisterRecipientInput): Promise<OrganRecipient> => {
+    const uid = (await supabase.auth.getUser()).data.user?.id;
+    return unwrap(supabase.from('organ_recipients').insert({ ...input, profile_id: uid }).select().single());
+  },
+
+  /** Coordinator-only: invokes the SQL matching engine (assistive scoring). */
+  runMatching: (donorId: string) =>
+    unwrap<number>(supabase.rpc('run_organ_matching', { p_donor: donorId })),
+
+  listMatches: async (status?: string): Promise<OrganMatch[]> => {
+    let q = supabase.from('organ_matches')
+      .select(`*, organ_donors(profiles(full_name)), organ_recipients(priority_score, profiles(full_name))`)
+      .order('compatibility_score', { ascending: false }).limit(100);
+    if (status) q = q.eq('status', status);
+    const rows = await unwrap<any[]>(q);
+    return rows.map((r) => ({
+      ...r,
+      donor_name: r.organ_donors?.profiles?.full_name,
+      recipient_name: r.organ_recipients?.profiles?.full_name,
+      recipient_priority: r.organ_recipients?.priority_score,
+      organ_donors: undefined, organ_recipients: undefined,
+    }));
+  },
+
+  /** Human review decision — the engine never auto-accepts. */
+  review: (matchId: string, approve: boolean, notes: string) =>
+    unwrap(supabase.from('organ_matches')
+      .update({ status: approve ? 'accepted' : 'rejected', notes, reviewed_at: new Date().toISOString() })
+      .eq('id', matchId).select().single()),
+
+  stats: async (): Promise<OrganStats> => {
+    const [donors, waiting, matches] = await Promise.all([
+      supabase.from('organ_donors').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+      supabase.from('organ_recipients').select('organ_needed', { count: 'exact' }).eq('status', 'waiting'),
+      supabase.from('organ_matches').select('status'),
+    ]);
+    const matchRows = (matches.data ?? []) as Array<{ status: string }>;
+    const waitingRows = (waiting.data ?? []) as Array<{ organ_needed: OrganStats['byOrgan'][number]['organ'] }>;
+    const byOrgan = Object.entries(
+      waitingRows.reduce<Record<string, number>>((acc, r) => ({ ...acc, [r.organ_needed]: (acc[r.organ_needed] ?? 0) + 1 }), {}),
+    ).map(([organ, w]) => ({ organ: organ as OrganStats['byOrgan'][number]['organ'], waiting: w }));
+    return {
+      donors: donors.count ?? 0,
+      waiting: waiting.count ?? 0,
+      proposed: matchRows.filter((m) => m.status === 'proposed').length,
+      accepted: matchRows.filter((m) => m.status === 'accepted').length,
+      transplanted: matchRows.filter((m) => m.status === 'transplanted').length,
+      byOrgan,
+    };
+  },
+};
+
+// ---------------------------------------------------------------------------
+// src/services/blood.service.ts
+// ---------------------------------------------------------------------------
+import type { BloodBank, BloodInventoryRow, BloodRequest, Urgency, BloodGroup } from '@/types';
+
+export const bloodService = {
+  myBank: async (): Promise<BloodBank | null> => {
+    const uid = (await supabase.auth.getUser()).data.user?.id;
+    if (!uid) return null;
+    const { data } = await supabase.from('blood_banks').select('*').eq('owner_id', uid).maybeSingle();
+    return data as BloodBank | null;
+  },
+
+  inventory: (bankId: string) =>
+    unwrap<BloodInventoryRow[]>(supabase.from('blood_inventory').select('*').eq('bank_id', bankId)),
+
+  upsertInventory: (rows: Array<Pick<BloodInventoryRow, 'bank_id' | 'blood_group' | 'units_available' | 'units_reserved'>>) =>
+    unwrap(supabase.from('blood_inventory').upsert(rows, { onConflict: 'bank_id,blood_group' }).select()),
+
+  requests: (status?: string) => {
+    let q = supabase.from('blood_requests').select('*').order('created_at', { ascending: false }).limit(100);
+    if (status) q = q.eq('status', status);
+    return unwrap<BloodRequest[]>(q);
+  },
+
+  createRequest: (input: { patient_name: string; blood_group: BloodGroup; units: number; urgency: Urgency; needed_by?: string; notes?: string }) =>
+    supabase.auth.getUser().then(({ data }) =>
+      unwrap<BloodRequest>(supabase.from('blood_requests')
+        .insert({ ...input, requester_id: data.user?.id }).select().single())),
+
+  nearbyBanks: (city: string) =>
+    unwrap<BloodBank[]>(supabase.from('blood_banks').select('*').eq('city', city).eq('verification', 'verified')),
+};
+
+// ---------------------------------------------------------------------------
+// src/services/emergency.service.ts
+// ---------------------------------------------------------------------------
+import type { Emergency } from '@/types';
+
+export const emergencyService = {
+  /** One-tap SOS: persist, then broadcast to regional operator channel. */
+  async triggerSOS(input: { lat: number; lng: number; type?: string; address?: string; city?: string }): Promise<Emergency> {
+    const uid = (await supabase.auth.getUser()).data.user?.id;
+    if (!uid) throw new ApiError('AUTH', 'Not signed in');
+    const emergency = await unwrap<Emergency>(
+      supabase.from('emergencies')
+        .insert({ reporter_id: uid, lat: input.lat, lng: input.lng, type: input.type ?? 'medical', address: input.address })
+        .select().single(),
+    );
+    await publish(`sos:${input.city ?? 'national'}`, 'sos:new', { emergency });
+    return emergency;
+  },
+
+  get: (id: string) => unwrap<Emergency>(supabase.from('emergencies').select('*').eq('id', id).single()),
+
+  /** Driver-side GPS stream → Ably (high frequency, no DB writes). */
+  publishAmbulanceLocation: (ambulanceId: string, lat: number, lng: number) =>
+    publish(`track:ambulance:${ambulanceId}`, 'track:loc', { ambulanceId, lat, lng, at: new Date().toISOString() }),
+};
+
+// ---------------------------------------------------------------------------
+// src/services/notification.service.ts
+// ---------------------------------------------------------------------------
+import type { AppNotification } from '@/types';
+
+export const notificationService = {
+  list: () =>
+    unwrap<AppNotification[]>(supabase.from('notifications').select('*')
+      .order('created_at', { ascending: false }).limit(50)),
+  markRead: (id: string) =>
+    unwrap(supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', id)),
+  markAllRead: (uid: string) =>
+    supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('user_id', uid).is('read_at', null),
+};
+
+// ---------------------------------------------------------------------------
+// src/services/chat.service.ts
+// ---------------------------------------------------------------------------
+import type { ChatMessage, Conversation } from '@/types';
+
+export const chatService = {
+  async forAppointment(appointmentId: string, participantIds: string[]): Promise<Conversation> {
+    const { data: existing } = await supabase.from('conversations')
+      .select('*').eq('appointment_id', appointmentId).maybeSingle();
+    if (existing) return existing as Conversation;
+    const conv = await unwrap<Conversation>(
+      supabase.from('conversations').insert({ appointment_id: appointmentId, subject: 'Consultation' }).select().single());
+    await supabase.from('conversation_participants')
+      .insert(participantIds.map((user_id) => ({ conversation_id: conv.id, user_id })));
+    return conv;
+  },
+
+  history: (conversationId: string) =>
+    unwrap<ChatMessage[]>(supabase.from('messages').select('*')
+      .eq('conversation_id', conversationId).order('created_at').limit(200)),
+
+  async send(conversationId: string, body: string): Promise<ChatMessage> {
+    const uid = (await supabase.auth.getUser()).data.user?.id;
+    const message = await unwrap<ChatMessage>(
+      supabase.from('messages').insert({ conversation_id: conversationId, sender_id: uid, body }).select().single());
+    await publish(`chat:${conversationId}`, 'chat:message', { message });
+    return message;
+  },
+};
+
+// ---------------------------------------------------------------------------
+// src/services/admin.service.ts
+// ---------------------------------------------------------------------------
+import type { AuditLog, Doctor, GovOverview } from '@/types';
+
+const count = async (table: string, build?: (q: any) => any) => {
+  let q = supabase.from(table).select('id', { count: 'exact', head: true });
+  if (build) q = build(q);
+  return (await q).count ?? 0;
+};
+
+export const adminService = {
+  pendingDoctors: () =>
+    unwrap<Doctor[]>(supabase.from('doctors').select('*').eq('verification', 'pending').order('id')),
+
+  verifyDoctor: (id: string, approve: boolean) =>
+    unwrap(supabase.from('doctors').update({ verification: approve ? 'verified' : 'rejected' }).eq('id', id).select().single()),
+
+  auditLog: (offset = 0) =>
+    unwrap<AuditLog[]>(supabase.from('audit_logs').select('*')
+      .order('created_at', { ascending: false }).range(offset, offset + 49)),
+
+  govOverview: async (): Promise<GovOverview> => {
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+    const [citizens, doctors, hospitals, appointmentsToday, activeEmergencies, waitingRecipients, activeDonors] =
+      await Promise.all([
+        count('profiles', (q) => q.eq('role', 'citizen')),
+        count('doctors', (q) => q.eq('verification', 'verified')),
+        count('hospitals', (q) => q.eq('verification', 'verified')),
+        count('appointments', (q) => q.gte('scheduled_at', todayStart.toISOString())),
+        count('emergencies', (q) => q.in('status', ['active', 'dispatched', 'on_scene', 'transporting'])),
+        count('organ_recipients', (q) => q.eq('status', 'waiting')),
+        count('organ_donors', (q) => q.eq('status', 'active')),
+      ]);
+    const inv = await supabase.from('blood_inventory').select('units_available');
+    const bloodUnits = ((inv.data ?? []) as Array<{ units_available: number }>).reduce((a, r) => a + r.units_available, 0);
+    return { citizens, doctors, hospitals, appointmentsToday, activeEmergencies, bloodUnits, waitingRecipients, activeDonors };
+  },
+};
+
+// ============================================================================
+// HOOKS
+// ============================================================================
+import { useEffect, useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+
+// ---------------------------------------------------------------------------
+// src/hooks/useAuth.ts
+// ---------------------------------------------------------------------------
+export function useAuth() {
+  const store = useAuthStore();
+  useEffect(() => {
+    if (store.status === 'loading') void store.init();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return store;
+}
+
+// ---------------------------------------------------------------------------
+// src/hooks/useDoctors.ts
+// ---------------------------------------------------------------------------
+export function useDoctorSearch(filters: DoctorSearchFilters) {
+  return useQuery({
+    queryKey: ['doctors', filters],
+    queryFn: () => doctorService.search(filters),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useDoctorSlots(doctorId: string | undefined, dateISO: string) {
+  return useQuery({
+    queryKey: ['slots', doctorId, dateISO],
+    queryFn: () => doctorService.slots(doctorId!, dateISO),
+    enabled: !!doctorId,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// src/hooks/useAppointments.ts
+// ---------------------------------------------------------------------------
+export function useMyAppointments() {
+  return useQuery({ queryKey: ['appointments', 'mine'], queryFn: appointmentService.mine });
+}
+
+export function useTodayQueue(doctorId: string | undefined) {
+  const qc = useQueryClient();
+  const query = useQuery({
+    queryKey: ['queue', doctorId],
+    queryFn: () => appointmentService.todayQueue(doctorId!),
+    enabled: !!doctorId,
+    refetchInterval: 30_000,
+  });
+  useEffect(() => {
+    if (!doctorId) return;
+    const ch = supabase.channel(`queue:${doctorId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments', filter: `doctor_id=eq.${doctorId}` },
+        () => qc.invalidateQueries({ queryKey: ['queue', doctorId] }))
+      .subscribe();
+    return () => { void supabase.removeChannel(ch); };
+  }, [doctorId, qc]);
+  return query;
+}
+
+export function useBookAppointment() {
+  const qc = useQueryClient();
+  const toast = useUiStore((s) => s.toast);
+  return useMutation({
+    mutationFn: appointmentService.book,
+    onSuccess: () => {
+      toast('success', 'Appointment booked');
+      void qc.invalidateQueries({ queryKey: ['appointments'] });
+    },
+    onError: (e) => toast('error', e instanceof Error ? e.message : 'Booking failed'),
+  });
+}
+
+export function useUpdateAppointmentStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status, reason }: { id: string; status: AppointmentStatus; reason?: string }) =>
+      appointmentService.setStatus(id, status, reason),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['appointments'] });
+      void qc.invalidateQueries({ queryKey: ['queue'] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// src/hooks/useOrgan.ts
+// ---------------------------------------------------------------------------
+export function useOrganMatches(status?: string) {
+  return useQuery({ queryKey: ['organ-matches', status ?? 'all'], queryFn: () => organService.listMatches(status) });
+}
+
+export function useOrganStats() {
+  return useQuery({ queryKey: ['organ-stats'], queryFn: organService.stats });
+}
+
+export function useReviewMatch() {
+  const qc = useQueryClient();
+  const toast = useUiStore((s) => s.toast);
+  return useMutation({
+    mutationFn: ({ id, approve, notes }: { id: string; approve: boolean; notes: string }) =>
+      organService.review(id, approve, notes),
+    onSuccess: (_d, v) => {
+      toast('success', v.approve ? 'Match accepted — proceed to clinical scheduling' : 'Match rejected');
+      void qc.invalidateQueries({ queryKey: ['organ-matches'] });
+      void qc.invalidateQueries({ queryKey: ['organ-stats'] });
+    },
+  });
+}
+
+export function useRunMatching() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: organService.runMatching,
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['organ-matches'] }),
+  });
+}
+
+export function useRegisterDonor() {
+  const toast = useUiStore((s) => s.toast);
+  return useMutation({
+    mutationFn: organService.registerDonor,
+    onSuccess: () => toast('success', 'Donor registration submitted'),
+    onError: (e) => toast('error', e instanceof Error ? e.message : 'Registration failed'),
+  });
+}
+
+export function useRegisterRecipient() {
+  const toast = useUiStore((s) => s.toast);
+  return useMutation({
+    mutationFn: organService.registerRecipient,
+    onSuccess: () => toast('success', 'Recipient added to waiting list'),
+    onError: (e) => toast('error', e instanceof Error ? e.message : 'Registration failed'),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// src/hooks/useBlood.ts
+// ---------------------------------------------------------------------------
+export function useMyBank() {
+  return useQuery({ queryKey: ['my-bank'], queryFn: bloodService.myBank });
+}
+
+export function useBloodInventory(bankId: string | undefined) {
+  const qc = useQueryClient();
+  const query = useQuery({
+    queryKey: ['blood-inventory', bankId],
+    queryFn: () => bloodService.inventory(bankId!),
+    enabled: !!bankId,
+  });
+  useEffect(() => {
+    if (!bankId) return;
+    const ch = supabase.channel(`blood:${bankId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'blood_inventory', filter: `bank_id=eq.${bankId}` },
+        () => qc.invalidateQueries({ queryKey: ['blood-inventory', bankId] }))
+      .subscribe();
+    return () => { void supabase.removeChannel(ch); };
+  }, [bankId, qc]);
+  return query;
+}
+
+export function useBloodRequests(status?: string) {
+  return useQuery({ queryKey: ['blood-requests', status ?? 'all'], queryFn: () => bloodService.requests(status) });
+}
+
+export function useCreateBloodRequest() {
+  const qc = useQueryClient();
+  const toast = useUiStore((s) => s.toast);
+  return useMutation({
+    mutationFn: bloodService.createRequest,
+    onSuccess: () => {
+      toast('success', 'Blood request broadcast');
+      void qc.invalidateQueries({ queryKey: ['blood-requests'] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// src/hooks/useEmergency.ts
+// ---------------------------------------------------------------------------
+export function useSOS() {
+  const toast = useUiStore((s) => s.toast);
+  return useMutation({
+    mutationFn: emergencyService.triggerSOS,
+    onError: (e) => toast('error', e instanceof Error ? e.message : 'SOS failed — call local emergency number'),
+  });
+}
+
+export function useEmergency(id: string | undefined) {
+  const qc = useQueryClient();
+  const query = useQuery({
+    queryKey: ['emergency', id],
+    queryFn: () => emergencyService.get(id!),
+    enabled: !!id,
+  });
+  useEffect(() => {
+    if (!id) return;
+    const ch = supabase.channel(`em:${id}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'emergencies', filter: `id=eq.${id}` },
+        () => qc.invalidateQueries({ queryKey: ['emergency', id] }))
+      .subscribe();
+    return () => { void supabase.removeChannel(ch); };
+  }, [id, qc]);
+  return query;
+}
+
+/** Live ambulance GPS over Ably. */
+export function useAmbulanceTrack(ambulanceId: string | undefined) {
+  const [loc, setLoc] = useState<{ lat: number; lng: number; at: string } | null>(null);
+  useEffect(() => {
+    if (!ambulanceId) return;
+    const ch = ablyChannel(`track:ambulance:${ambulanceId}`);
+    const onLoc = (msg: Ably.Message) => setLoc(msg.data as { lat: number; lng: number; at: string });
+    void ch.subscribe('track:loc', onLoc);
+    return () => { void ch.unsubscribe('track:loc', onLoc); };
+  }, [ambulanceId]);
+  return loc;
+}
+
+// ---------------------------------------------------------------------------
+// src/hooks/useNotifications.ts — DB history + Supabase realtime + Ably push
+// ---------------------------------------------------------------------------
+export function useNotifications() {
+  const qc = useQueryClient();
+  const profile = useAuthStore((s) => s.profile);
+  const toast = useUiStore((s) => s.toast);
+
+  const query = useQuery({
+    queryKey: ['notifications'],
+    queryFn: notificationService.list,
+    enabled: !!profile,
+  });
+
+  useEffect(() => {
+    if (!profile) return;
+    const db = supabase.channel('notify-db')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile.id}` },
+        () => qc.invalidateQueries({ queryKey: ['notifications'] }))
+      .subscribe();
+    const ably = ablyChannel(`notify:user:${profile.id}`);
+    const onPush = (msg: Ably.Message) => {
+      const n = msg.data as AblyEventMap['notify:new']['notification'];
+      if (n.priority === 'critical' || n.priority === 'high') toast('info', n.title);
+      void qc.invalidateQueries({ queryKey: ['notifications'] });
+    };
+    void ably.subscribe('notify:new', onPush);
+    return () => {
+      void supabase.removeChannel(db);
+      void ably.unsubscribe('notify:new', onPush);
+    };
+  }, [profile, qc, toast]);
+
+  const unread = (query.data ?? []).filter((n) => !n.read_at).length;
+  return { ...query, unread };
+}
+
+// ---------------------------------------------------------------------------
+// src/hooks/useChat.ts — history + Ably live messages, typing, read receipts
+// ---------------------------------------------------------------------------
+export function useChat(conversationId: string | undefined) {
+  const profile = useAuthStore((s) => s.profile);
+  const qc = useQueryClient();
+  const [live, setLive] = useState<ChatMessage[]>([]);
+  const [typing, setTyping] = useState<{ name: string } | null>(null);
+  const [readBy, setReadBy] = useState<Record<string, string>>({});
+  const typingTimeout = useRef<ReturnType<typeof setTimeout>>();
+
+  const history = useQuery({
+    queryKey: ['chat', conversationId],
+    queryFn: () => chatService.history(conversationId!),
+    enabled: !!conversationId,
+  });
+
+  useEffect(() => {
+    if (!conversationId || !profile) return;
+    const ch = ablyChannel(`chat:${conversationId}`);
+    const onMsg = (m: Ably.Message) => {
+      const { message } = m.data as AblyEventMap['chat:message'];
+      if (message.sender_id !== profile.id) setLive((prev) => [...prev, message]);
+    };
+    const onTyping = (m: Ably.Message) => {
+      const d = m.data as AblyEventMap['chat:typing'];
+      if (d.userId === profile.id) return;
+      setTyping(d.isTyping ? { name: d.name } : null);
+    };
+    const onRead = (m: Ably.Message) => {
+      const d = m.data as AblyEventMap['chat:read'];
+      setReadBy((prev) => ({ ...prev, [d.userId]: d.at }));
+    };
+    void ch.subscribe('chat:message', onMsg);
+    void ch.subscribe('chat:typing', onTyping);
+    void ch.subscribe('chat:read', onRead);
+    return () => {
+      void ch.unsubscribe('chat:message', onMsg);
+      void ch.unsubscribe('chat:typing', onTyping);
+      void ch.unsubscribe('chat:read', onRead);
+    };
+  }, [conversationId, profile]);
+
+  const send = useMutation({
+    mutationFn: (body: string) => chatService.send(conversationId!, body),
+    onSuccess: (message) => {
+      setLive((prev) => [...prev, message]);
+      void qc.invalidateQueries({ queryKey: ['chat', conversationId] });
+    },
+  });
+
+  const signalTyping = (isTyping: boolean) => {
+    if (!conversationId || !profile) return;
+    void publish(`chat:${conversationId}`, 'chat:typing', { userId: profile.id, name: profile.full_name, isTyping });
+    if (isTyping) {
+      clearTimeout(typingTimeout.current);
+      typingTimeout.current = setTimeout(() => signalTyping(false), 2_500);
+    }
+  };
+
+  const markRead = () => {
+    if (!conversationId || !profile) return;
+    void publish(`chat:${conversationId}`, 'chat:read', { userId: profile.id, at: new Date().toISOString() });
+  };
+
+  const messages = [...(history.data ?? []), ...live].sort((a, b) => a.created_at.localeCompare(b.created_at));
+  return { messages, send, typing, signalTyping, markRead, readBy, isLoading: history.isLoading };
+}
+
+/** Presence: enter a channel and stream who is online. */
+export function usePresence(channelName: string, data?: Record<string, unknown>) {
+  const [members, setMembers] = useState<string[]>([]);
+  useEffect(() => {
+    const ch = ablyChannel(channelName);
+    const sync = () => void ch.presence.get().then((ms) => setMembers(ms.map((m) => m.clientId)));
+    void ch.presence.enter(data ?? {});
+    void ch.presence.subscribe(['enter', 'leave', 'update'], sync);
+    void sync();
+    return () => {
+      void ch.presence.leave();
+      void ch.presence.unsubscribe();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channelName]);
+  return members;
+}
+
+// ---------------------------------------------------------------------------
+// src/hooks/useAdmin.ts
+// ---------------------------------------------------------------------------
+export function usePendingDoctors() {
+  return useQuery({ queryKey: ['pending-doctors'], queryFn: adminService.pendingDoctors });
+}
+
+export function useVerifyDoctor() {
+  const qc = useQueryClient();
+  const toast = useUiStore((s) => s.toast);
+  return useMutation({
+    mutationFn: ({ id, approve }: { id: string; approve: boolean }) => adminService.verifyDoctor(id, approve),
+    onSuccess: (_d, v) => {
+      toast('success', v.approve ? 'Doctor verified' : 'Application rejected');
+      void qc.invalidateQueries({ queryKey: ['pending-doctors'] });
+    },
+  });
+}
+
+export function useAuditLog(offset = 0) {
+  return useQuery({ queryKey: ['audit', offset], queryFn: () => adminService.auditLog(offset) });
+}
+
+export function useGovOverview() {
+  return useQuery({ queryKey: ['gov-overview'], queryFn: adminService.govOverview, refetchInterval: 60_000 });
+}
+
+// ============================================================================
+// supabase/functions/ably-token/index.ts  (Deno edge function)
+// Deploy: supabase functions deploy ably-token
+// Secret: supabase secrets set ABLY_API_KEY=keyId:keySecret
+// ============================================================================
+// import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
+// import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.47.10';
+// import Ably from 'https://esm.sh/ably@2.5.0';
+//
+// const CORS = {
+//   'Access-Control-Allow-Origin': '*',
+//   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+// };
+//
+// // Capability matrix: least-privilege per role.
+// function capabilityFor(userId: string, role: string): Record<string, string[]> {
+//   const base: Record<string, string[]> = {
+//     [`notify:user:${userId}`]: ['subscribe'],
+//     'presence:doctors': ['subscribe', 'presence'],
+//     'chat:*': ['publish', 'subscribe', 'presence'],
+//     'track:*': ['subscribe'],
+//   };
+//   if (role === 'doctor') base['presence:doctors'] = ['publish', 'subscribe', 'presence'];
+//   if (role === 'citizen') base['sos:*'] = ['publish'];
+//   if (['emergency_operator', 'government', 'hospital', 'admin', 'super_admin'].includes(role))
+//     base['sos:*'] = ['subscribe', 'publish'];
+//   if (role === 'ambulance_driver') base['track:*'] = ['publish', 'subscribe'];
+//   if (['admin', 'super_admin', 'organ_authority', 'hospital'].includes(role))
+//     base['notify:user:*'] = ['publish'];
+//   return base;
+// }
+//
+// serve(async (req) => {
+//   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
+//   const jwt = req.headers.get('Authorization')?.replace('Bearer ', '');
+//   if (!jwt) return new Response('unauthorized', { status: 401, headers: CORS });
+//
+//   const supa = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, {
+//     global: { headers: { Authorization: `Bearer ${jwt}` } },
+//   });
+//   const { data: { user }, error } = await supa.auth.getUser();
+//   if (error || !user) return new Response('unauthorized', { status: 401, headers: CORS });
+//
+//   const { data: profile } = await supa.from('profiles').select('role').eq('id', user.id).single();
+//   const rest = new Ably.Rest(Deno.env.get('ABLY_API_KEY')!);
+//   const tokenRequest = await rest.auth.createTokenRequest({
+//     clientId: user.id,
+//     capability: JSON.stringify(capabilityFor(user.id, profile?.role ?? 'citizen')),
+//     ttl: 60 * 60 * 1000, // 1h
+//   });
+//   return new Response(JSON.stringify(tokenRequest), {
+//     headers: { ...CORS, 'Content-Type': 'application/json' },
+//   });
+// });

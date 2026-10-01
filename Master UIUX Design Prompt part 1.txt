@@ -1,0 +1,218 @@
+Master UI/UX Design Prompt
+Role & Directive
+Act as a Principal Healthcare Product Designer and Lead Mobile UI Engineer. Design a pixel-perfect, WCAG 2.1 AA-compliant, high-conversion 3-screen iOS mobile application interface for "CardioLife: Heart Care"—an elite outpatient cardiology scheduling and diagnostic platform.
+
+The aesthetic must balance clinical authority, clinical empathy, and high-end software craftsmanship. Avoid generic healthcare clichés; rely on rich crimson gradients, clean mathematical whitespace, humanist typography, and deliberate typographic hierarchy.
+
+1. Design System Tokens & Brand Foundations
+Color Palette
+Primary Brand / Dark Canvas: #4A0A10 transitioning to deep crimson #2A0407 and obsidian #120103
+
+Hero Accent / Crimson Active: #8E1B23 (Buttons, active tabs, primary badges)
+
+Hero Gradient Card: Linear-gradient(135deg, #981D26 0%, #7D121B 100%)
+
+Surface Neutral: #FDFBFB (Dashboard and detail screen canvas)
+
+Card Containers: #FFFFFF with border 1px solid #F1ECEB
+
+Typography - Primary Headings: #1E1E1E
+
+Typography - Muted / Secondary: #6B7280
+
+Typography - Subtle Metadata: #9CA3AF
+
+Accent Highlight (Soft Crimson): #FFF1F2 (Used for icon container fills)
+
+Interactive Status / Confirmed: #8E1B23 / #B91C1C
+
+Typography Specification
+Primary Typeface: "Plus Jakarta Sans" or Apple SF Pro Display
+
+H1 Display (Onboarding): 26pt / 32pt line-height, Bold (700)
+
+H2 Section Titles: 20pt / 26pt line-height, Bold (700)
+
+Subheadings / Card Headers: 14pt / 18pt line-height, Semi-Bold (600)
+
+Body / Clinical Data: 12pt / 16pt line-height, Medium (500)
+
+Caption / Timestamps / Metadata: 10pt / 14pt line-height, Regular (400) or Bold (700) where tagged
+
+Spatial Grid, Geometry & Elevations
+Base Grid: 8pt spatial grid system (4pt micro-adjustments for badges and metadata)
+
+Screen Chassis: Apple iPhone Native Viewport (390 x 844 pt), rounded corners (42px radius), status bar with dynamic island clearance.
+
+Container Corner Radii:
+
+Small pills & badges: 9999px (full capsule)
+
+Secondary cards / list items: 16px
+
+Hero action modules / feature cards: 20px–24px
+
+Drop Shadows:
+
+Ambient Soft: 0 4px 20px -2px rgba(0, 0, 0, 0.05)
+
+Elevated Hero Card: 0 10px 25px -5px rgba(125, 18, 27, 0.25)
+
+2. Detailed Screen Specifications
+Screen 1: Brand Onboarding & Value Proposition (Dark Mode Experience)
+Canvas Background: Continuous vertical mesh gradient running from #4A0A10 at the dynamic status bar to #120103 at the bottom home indicator.
+
+Header (Top Safe Area):
+
+Brand Mark: Center-aligned vector heart glyph in vivid crimson with an integrated cardiogram pulse line.
+
+Brand Name: "CardioLife" in pure white (14pt Bold), sub-branded with "HEART CARE" (8pt uppercase, tracking +2.0, light red #F87171).
+
+Center Visual Focal Point:
+
+A hyper-realistic, photorealistic 3D anatomical heart illustration floating mid-viewport, surrounded by an ambient crimson radial back-glow (rgba(220, 38, 38, 0.25), blur 60px).
+
+A glowing, sharp-edged vector ECG trace line passing horizontally across the base of the heart with subtle variable opacity.
+
+Lower Third Content Architecture:
+
+Headline: "Your Heart Deserves the Best Care" (Left-aligned, 26pt, White, with "Best Care" accentuated in high-chroma red).
+
+Sub-copy: "Advanced care for heart health. Early diagnosis. Better life." (12pt, #D1D5DB, regular weight, leading 18pt).
+
+Action Trigger Bar: Dual-component interactive dock:
+
+Primary CTA: Elongated pill button with an internal dark-burgundy-to-crimson gradient, white text reading "Get Started" (13pt Semi-Bold), and an inline right-pointing chevron.
+
+Emergency / Quick Action Node: Adjacent 48x48px circular white floating button enclosing a solid crimson heart icon with soft haptic drop shadow.
+
+Screen 2: Discovery & Outpatient Triage Dashboard (Light Clean Mode)
+Canvas Background: #FDFBFB clinical warmth.
+
+Header Component:
+
+Left: Circular patient profile photo (Alex Morgan, 40px diameter) with subtle border, accompanied by a greeting block: "Good Morning," (10pt Muted) and "Alex Morgan" (14pt Bold Dark).
+
+Right: Minimalist notification bell inside a 36px circular pill with a 6px crimson unread dot badge.
+
+Page Title:
+
+"Book an Appointment" displayed across two lines (22pt Bold, #111827).
+
+Category Filter Ribbon:
+
+Horizontally scrollable row of pill chips:
+
+[All] (Active state: Solid #8E1B23, white text)
+
+[Cardiologist] (Inactive: #F3F4F6 background, #4B5563 text)
+
+[Checkup]
+
+[Test & Scan]
+
+Primary Featured Module (Urgent / Available Slot):
+
+Container: Deep crimson gradient (#981D26 to #7D121B), white typography, 20px radius.
+
+Top Row: Heart icon badge in frosted glass container + "Cardiologist Appointment" label | Tagged right with "10:00 - 10:30 AM" badge in dark translucent overlay.
+
+Middle Row: Overlapping avatar stack showing 3 doctor portraits + a dark badge reading "+3" | Accompanied by label "5 Doctors available" (10pt, #FECDD3).
+
+Bottom Row: Subtle dividing line; Specialist listing: "Dr. James Anderson" (13pt Bold White) and "Senior Cardiologist" (10pt Soft Pink) | Right circular chevron icon button.
+
+Diagnostic Centers & Scan Directory:
+
+Vertical stack of 2 diagnostic cards (#FFFFFF, border 1px solid #F3F4F6, 16px radius):
+
+Card 1 (Echocardiogram):
+
+Header: Diagnostic icon in light rose circle + "Echocardiogram" | Right timestamp: "11:30 - 12:00 PM" in soft grey capsule.
+
+Capacity: Avatar cluster indicating "3 Slots available".
+
+Footer: "Cardiac Diagnostic Center" + navigating right chevron.
+
+Card 2 (TMT - Stress Test):
+
+Header: Treadmill/Runner glyph + "TMT (Stress Test)" | Right timestamp: "02:00 - 02:30 PM".
+
+Capacity: Avatar cluster indicating "2 Slots available".
+
+Footer: "Cardiac Wellness Center" + navigating right chevron.
+
+Bottom Navigation System:
+
+Fixed white dock, top border 1px solid #F3F4F6, 4 tabs with micro-labels:
+
+Home (Active: #8E1B23 filled home icon, soft crimson background halo)
+
+Appointments (Outline calendar icon)
+
+Reports (Outline medical chart icon)
+
+Profile (Outline user icon)
+
+Screen 3: Consultation Details & Clinical Itinerary (Light Clean Mode)
+Top Navigation:
+
+Circular back arrow button (Left) | Circular heart/save outline button (Right).
+
+Doctor & Consultation Card:
+
+Left Data Block: Date label "16 May 2025" (10pt), Title "Cardiologist Consultation" (18pt Bold), and Reference block "Appointment ID: CLM789456".
+
+Right Asset: High-resolution vertical portrait of attending physician (Dr. James Anderson) in a lab coat, clipped in a 16px rounded rectangle.
+
+Progress Stepper:
+
+Card titled "Appointment Status" with right pill tag "Confirmed" (#8E1B23 fill, white text).
+
+Visual Step Line: Horizontal dashed indicator connecting 10:00 AM (start node) to 10:30 AM (end node) passing through a centralized, elevated red circular node stamped with a white heart.
+
+Visit Type Interactive Switcher:
+
+Container: Deep crimson #8E1B23 rounded module with header "Visit Type" and auxiliary action controls (+ / search).
+
+2-Column Selection Cards:
+
+Option A (Selected): Translucent white surface (rgba(255,255,255,0.15)), "Initial Consultation", duration "30 min", circular forward arrow.
+
+Option B (Unselected): Translucent dark surface (rgba(0,0,0,0.2)), "Follow-up Consultation", duration "20 min", circular forward arrow.
+
+"What to Expect" Procedural Grid:
+
+Section Title: "What to Expect" (13pt Bold, #1F2937).
+
+4-Column Icon Grid (White mini-cards, 12px radius, subtle border):
+
+Heart Checkup (Stethoscope/Heart icon in #FFF1F2)
+
+ECG Test (Pulse waveform icon)
+
+Risk Assessment (Heart info badge icon)
+
+Personalised Treatment (Prescription/Chart icon)
+
+Reassurance Footer Strip:
+
+Left: Outline heart icon with micro-copy: "Caring for your heart, every step of the way."
+
+Right: Capsule CTA button "Learn More ->" in solid crimson.
+
+3. Micro-Interactions & UX Requirements
+Haptic & Motion Design:
+
+Primary button taps provide light impact haptic feedback (UIImpactFeedbackGenerator(style: .light)).
+
+Card transitions utilize spring physics (damping: 0.8, response: 0.35s).
+
+Category chips horizontally glide with fluid momentum scrolling and auto-centering on selection.
+
+Accessibility Targets:
+
+All interactive touch targets must meet or exceed 44 x 44 pt minimum dimensions.
+
+Text contrast ratios must strictly respect WCAG AA: Minimum 4.5:1 for standard body text against background, and 3:1 for graphical interface components.
+
+Semantic labels on all icon-only buttons (Back, Bookmark, Notifications, Emergency Heart).

@@ -1,4 +1,3 @@
-import { gsap } from 'gsap';
 import { useLayoutEffect, useRef } from 'react';
 
 export function usePopReveal(delay = 0) {

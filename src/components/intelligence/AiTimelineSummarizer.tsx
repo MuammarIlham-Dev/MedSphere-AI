@@ -1,4 +1,4 @@
-import { useTimelineSummarizer } from'@/hooks/useAi';
+import { useTimelineSummarizer } from'@/hooks/queries/useAiQueries';
 import { Card, CardHeader } from'@/components/ui/Card';
 import { Skeleton, EmptyState } from'@/components/ui/KpiCard';
 import ReactMarkdown from'react-markdown';

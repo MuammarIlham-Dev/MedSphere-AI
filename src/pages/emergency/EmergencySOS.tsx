@@ -4,31 +4,27 @@ import { PageTransition } from '@/components/transitions/PageTransition';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { IoMedkitOutline, IoNavigateOutline, IoCheckmarkCircle } from 'react-icons/io5';
-import { useSOS, useEmergency } from '@/hooks/useEmergency';
+import { useSOS, useEmergency } from '@/hooks/queries/useEmergencyQueries';
 import { useAuthStore } from '@/stores/authStore';
 import { useUiStore } from '@/stores/uiStore';
 
 const STEPS = ['active', 'dispatched', 'on_scene', 'transporting', 'arrived', 'resolved'] as const;
-const EMERGENCY_TYPES = ['medical', 'accident', 'fire', 'police'] as const;
 
 export default function EmergencySOS() {
   const profile = useAuthStore((s) => s.profile);
   const toast = useUiStore((s) => s.toast);
   const sos = useSOS();
   const [emergencyId, setEmergencyId] = useState<string>();
-  const [emergencyType, setEmergencyType] = useState<(typeof EMERGENCY_TYPES)[number]>('medical');
   const { data: emergency } = useEmergency(emergencyId);
 
   const trigger = () => {
-    if (!('geolocation' in navigator)) { toast('error', 'Geolocation unavailable on this device'); return; }
+    if (!('geolocation' in navigator)) return toast('error', 'Geolocation unavailable on this device');
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        sos.mutate(
-          { lat: pos.coords.latitude, lng: pos.coords.longitude, city: profile?.city ?? undefined, type: emergencyType },
-          { onSuccess: (e) => { setEmergencyId(e.id); toast('success', 'SOS sent — help is being dispatched'); } },
-        );
-      },
-      () => { toast('error', 'Location permission required for SOS'); },
+      (pos) => sos.mutate(
+        { lat: pos.coords.latitude, lng: pos.coords.longitude, city: profile?.city ?? undefined },
+        { onSuccess: (e) => { setEmergencyId(e.id); toast('success', 'SOS sent — help is being dispatched'); } },
+      ),
+      () => toast('error', 'Location permission required for SOS'),
       { enableHighAccuracy: true, timeout: 10_000 },
     );
   };
@@ -40,15 +36,6 @@ export default function EmergencySOS() {
       <PageHeader title="Emergency SOS" subtitle="One tap shares your live location with the nearest response network" />
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="flex flex-col items-center justify-center gap-6 p-10 text-center">
-          <div className="flex flex-wrap justify-center gap-2" role="group" aria-label="Emergency type">
-            {EMERGENCY_TYPES.map((type) => (
-              <button key={type} type="button" onClick={() => { setEmergencyType(type); }}
-                className={cn('rounded-full border px-3 py-1.5 text-xs font-medium capitalize',
-                  emergencyType === type ? 'border-red-500 bg-red-50 text-red-700 dark:bg-red-950/30' : 'border-slate-200 text-slate-500 dark:border-white/10')}>
-                {type}
-              </button>
-            ))}
-          </div>
           <button onClick={trigger} disabled={sos.isPending}
             aria-label="Trigger emergency SOS"
             className="flex h-44 w-44 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-red-700 text-white shadow-2xl transition-transform hover:scale-105 active:scale-95 animate-sos-ring disabled:opacity-60">
@@ -58,12 +45,12 @@ export default function EmergencySOS() {
             </span>
           </button>
           <p className="max-w-xs text-sm text-slate-500 dark:text-slate-400">
-            Pressing SOS creates a {emergencyType} alert with your GPS position for authorized emergency operators.
+            Pressing SOS notifies regional emergency operators with your GPS position and medical profile.
           </p>
           {(profile?.emergency_contacts ?? []).length > 0 && (
             <div className="w-full rounded-xl bg-surface-muted p-4 text-left dark:bg-surface-dark-muted">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Emergency contacts</p>
-              {profile?.emergency_contacts.map((c, i) => (
+              {profile!.emergency_contacts.map((c, i) => (
                 <p key={i} className="mt-1.5 text-sm">{c.name} · {c.relation} · <a className="text-brand-600" href={`tel:${c.phone}`}>{c.phone}</a></p>
               ))}
             </div>

@@ -36,6 +36,8 @@ export interface Profile {
   country: string;
   lat: number | null;
   lng: number | null;
+  weight_kg: number | null;
+  height_cm: number | null;
   emergency_contacts: EmergencyContact[];
   mfa_enabled: boolean;
   onboarding_completed: boolean;

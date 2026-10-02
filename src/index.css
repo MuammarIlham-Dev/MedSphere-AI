@@ -4,33 +4,13 @@
 
 @layer base {
   html { @apply scroll-smooth; }
-  
-  body { 
-    @apply bg-surface-canvas text-brand-950 font-sans antialiased select-none; 
-  }
-  
-  h1, h2, h3, h4, h5, h6 { @apply font-heading tracking-tight text-brand-950; }
-  
-  :focus-visible { @apply outline-none ring-2 ring-brand-500 ring-offset-2 rounded-xl transition-shadow duration-300; }
-  
-  * { scrollbar-width: thin; scrollbar-color: theme('colors.brand.400') transparent; }
+  body { @apply bg-surface-soft text-slate-800 antialiased dark:bg-surface-dark dark:text-slate-100; }
+  :focus-visible { @apply outline-none ring-2 ring-brand-500 ring-offset-2 ring-offset-surface dark:ring-offset-surface-dark rounded-md; }
+  * { scrollbar-width: thin; scrollbar-color: theme('colors.slate.300') transparent; }
 }
-
 @layer components {
-  /* Vibrant, soft glassmorphism */
-  .glass { 
-    @apply bg-surface-card backdrop-blur-xl border border-border-subtle shadow-soft transition-all duration-500 ease-out; 
-  }
-  .glass:hover {
-    @apply shadow-hero -translate-y-[2px];
-  }
+  .glass { @apply bg-white/70 backdrop-blur-xl dark:bg-surface-dark-soft/70 border border-white/40 dark:border-white/10; }
 }
-
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
-}
-
-@keyframes shimmer {
-  from { background-position: 200% 0; }
-  to { background-position: -200% 0; }
 }

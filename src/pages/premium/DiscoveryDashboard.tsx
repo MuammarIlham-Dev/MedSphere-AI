@@ -1,3 +1,4 @@
+import { Card } from '@/components/ui/Card';
 import { FilterChip } from '@/components/ui/FilterChip';
 import { BottomNavDock } from '@/components/ui/BottomNavDock';
 import { AvatarStack } from '@/components/ui/AvatarStack';

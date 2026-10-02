@@ -8,36 +8,29 @@ export default {
     extend: {
       colors: {
         brand: {
-          50: '#FFF1F2', 100: '#FEE2E2', 200: '#FECACA', 300: '#FCA5A5',
-          400: '#F87171', 500: '#DC2626', 600: '#981D26', 700: '#8E1B23',
-          800: '#7D121B', 900: '#2A0407', 950: '#120103',
-          burgundy: '#4A0A10',
-          rose: '#FFF1F2'
+          50: '#ecfeff', 100: '#cffafe', 200: '#a5f3fc', 300: '#67e8f9',
+          400: '#22d3ee', 500: '#06b6d4', 600: '#0891b2', 700: '#0e7490',
+          800: '#155e75', 900: '#164e63', 950: '#083344',
         },
         surface: {
-          canvas: '#FDFBFB', card: '#FFFFFF', subtle: '#F8F9FA'
+          DEFAULT: '#ffffff', soft: '#f8fafc', muted: '#f1f5f9',
+          dark: '#0b1220', 'dark-soft': '#0f172a', 'dark-muted': '#1e293b',
         },
-        border: {
-          subtle: '#F1ECEB',
-        }
+        success: '#16a34a', warning: '#d97706', danger: '#dc2626', info: '#2563eb',
       },
       fontFamily: {
-        heading: ['Inter', 'system-ui', 'sans-serif'],
         sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
       },
-      borderRadius: { xl: '0.875rem', '2xl': '1.25rem', '3xl': '1.5rem', pill: '9999px' },
+      borderRadius: { xl: '0.875rem', '2xl': '1.25rem', '3xl': '1.75rem' },
       boxShadow: {
-        soft: '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
-        hero: '0 10px 25px -5px rgba(125, 18, 27, 0.25)',
+        card: '0 1px 2px rgb(15 23 42 / 0.06), 0 8px 24px -12px rgb(15 23 42 / 0.18)',
+        lift: '0 12px 32px -12px rgb(8 145 178 / 0.35)',
       },
       keyframes: {
         'fade-up': { from: { opacity: '0', transform: 'translateY(12px)' }, to: { opacity: '1', transform: 'none' } },
-        'pop-reveal': { '0%': { opacity: '0', transform: 'scale(0.95)' }, '100%': { opacity: '1', transform: 'scale(1)' } },
+        pulseRing: { '0%': { boxShadow: '0 0 0 0 rgb(220 38 38 / .5)' }, '100%': { boxShadow: '0 0 0 24px transparent' } },
       },
-      animation: { 
-        'fade-up': 'fade-up .8s cubic-bezier(0.25, 1, 0.5, 1) both',
-        'pop-reveal': 'pop-reveal .5s cubic-bezier(0.175, 0.885, 0.32, 1.275) both',
-      },
+      animation: { 'fade-up': 'fade-up .5s ease both', 'sos-ring': 'pulseRing 1.6s ease-out infinite' },
     },
   },
   plugins: [],

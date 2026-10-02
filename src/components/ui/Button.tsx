@@ -6,11 +6,11 @@ type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'success';
 type Size = 'sm' | 'md' | 'lg';
 
 const variants: Record<Variant, string> = {
-  primary: 'bg-gradient-to-r from-[#801019] to-[#590A10] text-white hover:from-brand-800 hover:to-brand-900 hover:-translate-y-[2px] shadow-hero active:scale-[0.97]',
-  secondary: 'bg-white border border-border-subtle text-brand-950 hover:shadow-soft hover:-translate-y-[1px]',
-  ghost: 'text-brand-950 hover:bg-brand-50',
-  danger: 'bg-brand-pulse-red text-white hover:bg-red-700 shadow-soft',
-  success: 'bg-green-600 text-white hover:bg-green-700 shadow-soft',
+  primary: 'bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-800 shadow-lift',
+  secondary: 'bg-surface-muted text-slate-700 hover:bg-slate-200 dark:bg-surface-dark-muted dark:text-slate-200 dark:hover:bg-slate-700',
+  ghost: 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-surface-dark-muted',
+  danger: 'bg-danger text-white hover:bg-red-700',
+  success: 'bg-success text-white hover:bg-green-700',
 };
 const sizes: Record<Size, string> = { sm: 'h-8 px-3 text-sm', md: 'h-10 px-4 text-sm', lg: 'h-12 px-6 text-base' };
 
@@ -26,8 +26,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       ref={ref}
       disabled={disabled || loading}
       className={cn(
-        'inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-all duration-300',
-        'focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none',
+        'inline-flex items-center justify-center gap-2 rounded-xl font-medium transition-all duration-150',
+        'focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-50',
         variants[variant], sizes[size], className,
       )}
       {...props}

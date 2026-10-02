@@ -11,7 +11,7 @@ export function usePageEnter<T extends HTMLElement>(ref: RefObject<T | null>) {
     const ctx = gsap.context(() => {
       gsap.fromTo(ref.current, { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.45, ease: 'power2.out' });
     }, ref);
-    return () => { ctx.revert(); };
+    return () => ctx.revert();
   }, [ref]);
 }
 
@@ -26,6 +26,6 @@ export function useReveal<T extends HTMLElement>(ref: RefObject<T | null>, selec
         { opacity: 1, y: 0, duration: 0.4, stagger: 0.06, ease: 'power2.out' },
       );
     }, ref);
-    return () => { ctx.revert(); };
+    return () => ctx.revert();
   }, [ref, selector]);
 }

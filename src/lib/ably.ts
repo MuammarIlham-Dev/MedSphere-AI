@@ -1,5 +1,5 @@
-import { env } from './env';
 import { supabase } from '@/lib/supabase';
+import { env } from './env';
 import * as Ably from 'ably';
 import type { AblyEventMap } from '@/types';
 
@@ -8,24 +8,11 @@ let realtime: Ably.Realtime | null = null;
 export function getAbly(): Ably.Realtime {
   if (realtime) return realtime;
   realtime = new Ably.Realtime({
-    authCallback: async (tokenParams, callback) => {
-      try {
-        const { data } = await supabase.auth.getSession();
-        if (!data.session) throw new Error('Authentication required');
-        const response = await fetch(env.ablyAuthUrl, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${data.session.access_token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(tokenParams),
-        });
-        if (!response.ok) throw new Error(`Realtime authorization failed (${response.status.toString()})`);
-        const token = await response.json() as Ably.TokenDetails;
-        callback(null, token);
-      } catch (error) {
-        callback(error as Ably.ErrorInfo, null);
-      }
+    authUrl: env.ablyAuthUrl,
+    authMethod: 'POST',
+    authCallback: async (_, cb) => {
+      const { data } = await supabase.auth.getSession();
+      cb(null, data.session?.access_token ?? '');
     },
     autoConnect: true,
     // Connection recovery: Ably resumes streams for up to 2 min after drops.
@@ -35,7 +22,7 @@ export function getAbly(): Ably.Realtime {
   return realtime;
 }
 
-export function ablyChannel(name: string) {
+export function ablyChannel<K extends keyof AblyEventMap>(name: string) {
   return getAbly().channels.get(name);
 }
 

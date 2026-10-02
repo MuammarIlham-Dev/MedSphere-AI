@@ -1,5 +1,5 @@
 import { useState } from'react';
-import { useSymptomChecker } from'@/hooks/useAi';
+import { useSymptomChecker } from'@/hooks/queries/useAiQueries';
 import { Card, CardHeader } from'@/components/ui/Card';
 import { Button } from'@/components/ui/Button';
 import { Input } from'@/components/ui/Input';

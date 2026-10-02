@@ -1,5 +1,5 @@
-import { IoCloseOutline } from 'react-icons/io5';
 import { cn } from '@/lib/utils';
+import { IoCloseOutline } from 'react-icons/io5';
 import { useUiStore } from '@/stores/uiStore';
 import { IoMoon, IoSunny, IoCheckmarkCircle, IoAlertCircle, IoInformationCircle } from 'react-icons/io5';
 
@@ -15,7 +15,7 @@ export function ToastHost() {
             <Icon className={cn('mt-0.5 h-5 w-5 shrink-0',
               t.kind === 'success' && 'text-success', t.kind === 'error' && 'text-danger', t.kind === 'info' && 'text-info')} />
             <p className="flex-1 text-sm text-slate-700 dark:text-slate-200">{t.message}</p>
-            <button onClick={() => { dismiss(t.id); }} aria-label="Dismiss" className="text-slate-400 hover:text-slate-600">
+            <button onClick={() => dismiss(t.id)} aria-label="Dismiss" className="text-slate-400 hover:text-slate-600">
               <IoCloseOutline className="h-4 w-4" />
             </button>
           </div>

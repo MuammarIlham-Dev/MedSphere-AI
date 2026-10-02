@@ -1,7 +1,7 @@
+import { unwrap } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { closeAbly } from '@/lib/ably';
 import { queryClient } from '@/lib/queryClient';
-import { unwrap } from '@/lib/api';
 import { create } from 'zustand';
 import type { Session } from '@supabase/supabase-js';
 import type { Profile, Role } from '@/types';
@@ -18,67 +18,29 @@ interface AuthState {
   hasRole: (...roles: Role[]) => boolean;
 }
 
-// ---------------------------------------------------------------------------
-// DEV-ONLY mock profile — injected when localStorage has dev_bypass=1
-// Never included in production builds (tree-shaken by import.meta.env.DEV).
-// ---------------------------------------------------------------------------
-function buildMockProfile(role: Role): Profile {
-  return {
-    id: 'dev-mock-user-id',
-    role,
-    full_name: `Dev ${role.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase())}`,
-    phone: '+8801700000000',
-    dob: '1990-01-01',
-    gender: 'male',
-    blood_group: 'B+',
-    avatar_url: null,
-    digital_health_id: `DEV-${role.toUpperCase().slice(0, 4)}-0001`,
-    address: 'House #474, Laxmipur, Rajshahi',
-    city: 'Rajshahi',
-    country: 'BD',
-    lat: 24.3636,
-    lng: 88.6241,
-    emergency_contacts: [],
-    mfa_enabled: false,
-    onboarding_completed: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-}
-
-function isDevBypass(): boolean {
-  return import.meta.env.DEV && localStorage.getItem('dev_bypass') === '1';
-}
-
-function getDevRole(): Role {
-  const stored = localStorage.getItem('dev_role') as Role | null;
-  const valid: Role[] = [
-    'citizen', 'doctor', 'hospital', 'laboratory', 'pharmacy', 'blood_bank',
-    'organ_authority', 'ambulance_driver', 'emergency_operator', 'government',
-    'researcher', 'volunteer', 'admin', 'super_admin',
-  ];
-  return stored && valid.includes(stored) ? stored : 'citizen';
-}
-
 export const useAuthStore = create<AuthState>((set, get) => ({
   status: 'loading',
   session: null,
   profile: null,
 
   init: async () => {
-    // ── DEV BYPASS ──────────────────────────────────────────────────────────
-    if (isDevBypass()) {
-      const role = getDevRole();
-      set({ status: 'signedIn', session: null, profile: buildMockProfile(role) });
+    if (import.meta.env.DEV && localStorage.getItem('dev_bypass') === '1') {
+      const role = (localStorage.getItem('dev_role') as Role) || 'citizen';
+      set({
+        session: { access_token: 'dev', refresh_token: 'dev', expires_in: 9999, token_type: 'bearer', user: { id: 'dev-user-id', app_metadata: {}, user_metadata: {}, aud: 'authenticated', created_at: '' } } as any,
+        profile: { id: 'dev-user-id', role, full_name: `Dev ${role}`, created_at: new Date().toISOString() } as Profile,
+        status: 'signedIn',
+      });
       return;
     }
-    // ── NORMAL SUPABASE FLOW ─────────────────────────────────────────────────
+
     const { data } = await supabase.auth.getSession();
     set({ session: data.session });
     if (data.session) await get().refreshProfile();
     set({ status: data.session ? 'signedIn' : 'signedOut' });
 
     supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (import.meta.env.DEV && localStorage.getItem('dev_bypass') === '1') return;
       set({ session, status: session ? 'signedIn' : 'signedOut' });
       if (session) await get().refreshProfile();
       else set({ profile: null });
@@ -87,12 +49,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   refreshProfile: async () => {
-    if (isDevBypass()) {
-      set({ profile: buildMockProfile(getDevRole()) });
+    if (import.meta.env.DEV && localStorage.getItem('dev_bypass') === '1') {
+      const role = (localStorage.getItem('dev_role') as Role) || 'citizen';
+      set({ profile: { id: 'dev-user-id', role, full_name: `Dev ${role}`, created_at: new Date().toISOString() } as Profile });
       return;
     }
     const { data: user } = await supabase.auth.getUser();
-    if (!user.user) { set({ profile: null }); return; }
+    if (!user.user) return set({ profile: null });
     const profile = await unwrap<Profile>(
       supabase.from('profiles').select('*').eq('id', user.user.id).single(),
     );
@@ -100,12 +63,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   signOut: async () => {
-    if (isDevBypass()) {
-      localStorage.removeItem('dev_bypass');
-      set({ session: null, profile: null, status: 'signedOut' });
-      window.location.href = '/login';
-      return;
-    }
     await supabase.auth.signOut();
     closeAbly();
     queryClient.clear();
@@ -117,3 +74,5 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     return !!p && roles.includes(p.role);
   },
 }));
+
+useAuthStore.getState().init();

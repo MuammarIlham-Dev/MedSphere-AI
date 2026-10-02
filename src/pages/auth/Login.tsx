@@ -37,14 +37,14 @@ export default function Login() {
   const afterPrimaryAuth = async () => {
     if (await authService.needsMfaChallenge()) { setMfaStep(true); return; }
     await init();
-    void navigate('/app', { replace: true });
+    navigate('/app', { replace: true });
   };
 
   const onEmail = async (values: EmailForm) => {
     setBusy(true);
     const { error } = await authService.signInEmail(values.email, values.password, captcha);
     setBusy(false);
-    if (error) { toast('error', error.message); return; }
+    if (error) return toast('error', error.message);
     await afterPrimaryAuth();
   };
 
@@ -54,7 +54,7 @@ export default function Login() {
       const { error } = await authService.verifyMfaTotp(mfaCode);
       if (error) throw error;
       await init();
-      void navigate('/app', { replace: true });
+      navigate('/app', { replace: true });
     } catch (e) {
       toast('error', e instanceof Error ? e.message : 'Invalid code');
     } finally { setBusy(false); }
@@ -71,7 +71,7 @@ export default function Login() {
         {mfaStep ? (
           <div className="mt-6 space-y-4">
             <Input label="Authenticator code" inputMode="numeric" maxLength={6} value={mfaCode}
-              onChange={(e) => { setMfaCode(e.target.value.replace(/\D/g, '')); }} placeholder="123456" autoFocus />
+              onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, ''))} placeholder="123456" autoFocus />
             <Button className="w-full" loading={busy} disabled={mfaCode.length !== 6} onClick={() => void onMfa()}>Verify</Button>
           </div>
         ) : (
@@ -89,24 +89,24 @@ export default function Login() {
               <div className="mt-5 space-y-4">
                 {!otpSent ? (
                   <>
-                    <Input id="phone" label="Phone (E.164)" placeholder="+8801XXXXXXXXX" value={phone} onChange={(e) => { setPhone(e.target.value); }} />
+                    <Input id="phone" label="Phone (E.164)" placeholder="+8801XXXXXXXXX" value={phone} onChange={(e) => setPhone(e.target.value)} />
                     <Turnstile onVerify={setCaptcha} />
                     <Button className="w-full" loading={busy} onClick={async () => {
                       setBusy(true);
                       const { error } = await authService.sendPhoneOtp(phone, captcha);
                       setBusy(false);
-                      if (error) { toast('error', error.message); return; }
+                      if (error) return toast('error', error.message);
                       setOtpSent(true);
                     }}>Send OTP</Button>
                   </>
                 ) : (
                   <>
-                    <Input id="otp" label="6-digit code" inputMode="numeric" maxLength={6} value={otp} onChange={(e) => { setOtp(e.target.value.replace(/\D/g, '')); }} />
+                    <Input id="otp" label="6-digit code" inputMode="numeric" maxLength={6} value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))} />
                     <Button className="w-full" loading={busy} onClick={async () => {
                       setBusy(true);
                       const { error } = await authService.verifyPhoneOtp(phone, otp);
                       setBusy(false);
-                      if (error) { toast('error', error.message); return; }
+                      if (error) return toast('error', error.message);
                       await afterPrimaryAuth();
                     }}>Verify & sign in</Button>
                   </>

@@ -25,12 +25,12 @@ export const useUiStore = create<UiState>((set, get) => ({
   sidebarOpen: false,
   toasts: [],
   setTheme: (theme) => { applyTheme(theme); set({ theme }); },
-  toggleTheme: () => { get().setTheme(get().theme === 'dark' ? 'light' : 'dark'); },
-  setSidebarOpen: (sidebarOpen) => { set({ sidebarOpen }); },
+  toggleTheme: () => get().setTheme(get().theme === 'dark' ? 'light' : 'dark'),
+  setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
   toast: (kind, message) => {
     const id = ++toastId;
     set((s) => ({ toasts: [...s.toasts, { id, kind, message }] }));
-    window.setTimeout(() => { get().dismiss(id); }, 5_000);
+    window.setTimeout(() => get().dismiss(id), 5_000);
   },
-  dismiss: (id) => { set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })); },
+  dismiss: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
 }));

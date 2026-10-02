@@ -36,7 +36,7 @@ export default function Register() {
     setBusy(true);
     const { error } = await authService.signUpEmail(values.email, values.password, values.full_name, values.role, captcha);
     setBusy(false);
-    if (error) { toast('error', error.message); return; }
+    if (error) return toast('error', error.message);
     setDone(true);
   };
 

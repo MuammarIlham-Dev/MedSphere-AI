@@ -1,4 +1,4 @@
-import { useDemandForecast } from'@/hooks/useAi';
+import { useDemandForecast } from'@/hooks/queries/useAiQueries';
 import { Card, CardHeader } from'@/components/ui/Card';
 import { Skeleton } from'@/components/ui/KpiCard';
 import { Badge } from'@/components/ui/Badge';

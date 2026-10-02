@@ -1,3 +1,4 @@
+import { Badge } from '@/components/ui/Badge';
 import React from "react";
 import {
   CalendarDays,
@@ -13,7 +14,6 @@ import {
 } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
-import { getInitials } from '@/data/popularDiagnosticRajshahi';
 
 export interface SupabaseDoctor {
   id: string;
@@ -36,8 +36,12 @@ interface DoctorCardProps {
 
 export function DoctorCard({ doctor, style }: DoctorCardProps) {
   const navigate = useNavigate();
-  const initials = getInitials(doctor.full_name || 'Dr');
   const avatarSrc = doctor.avatar_url ?? '/doctor-avatar.jpg';
+  
+  const nameParts = (doctor.full_name || 'Dr').split(' ').filter(Boolean);
+  const initials = nameParts.length > 1 
+    ? ((nameParts[0]?.[0] || '') + (nameParts[nameParts.length - 1]?.[0] || '')).toUpperCase() || 'DR'
+    : (nameParts[0]?.[0] || 'D').toUpperCase();
 
   // Deriving fallback/mock values to fully showcase the UI
   const credentials = doctor.qualifications || [];
@@ -95,7 +99,7 @@ export function DoctorCard({ doctor, style }: DoctorCardProps) {
       </div>
 
       {/* Middle Column: Doctor Details */}
-      <div className="shrink-0 flex flex-col w-full lg:w-[400px] pt-1 pb-1">
+      <div className="flex-1 flex flex-col min-w-0 pt-1 pb-1 lg:pr-4">
         {/* Department Pill */}
         <div className="flex items-center gap-1.5 mb-2 w-fit px-1.5 py-1 rounded-lg bg-rose-100 text-rose-500">
           <Heart className="w-3.5 h-3.5 stroke-[2.5] fill-rose-500/50" />
@@ -133,7 +137,7 @@ export function DoctorCard({ doctor, style }: DoctorCardProps) {
             </div>
           </div>
           
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-1.5">
             <MapPin className="w-4 h-4 text-slate-600 stroke-[1.5] shrink-0 -mt-3" />
             <div className="flex flex-col min-w-0">
               <span className="text-[10px] font-bold text-slate-600 truncate">{doctor.city || 'Rajshahi'}</span>
@@ -141,7 +145,7 @@ export function DoctorCard({ doctor, style }: DoctorCardProps) {
             </div>
           </div>
           
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-1.5">
             <Building2 className="w-4 h-4 text-slate-600 stroke-[1.5] shrink-0 -mt-3" />
             <div className="flex flex-col min-w-0">
               <span className="text-[10px] font-bold text-slate-600 truncate">{credentials[0] || 'MBBS'}</span>
@@ -152,7 +156,7 @@ export function DoctorCard({ doctor, style }: DoctorCardProps) {
       </div>
 
       {/* Right Column: Booking & Details */}
-      <div className="flex-1 min-w-0 lg:pl-3 border-t lg:border-t-0 lg:border-l border-dashed border-slate-200 flex flex-col relative pt-1">
+      <div className="shrink-0 w-full lg:w-[280px] xl:w-[300px] lg:pl-5 border-t lg:border-t-0 lg:border-l border-dashed border-slate-200 flex flex-col relative pt-1">
         {/* Favorite Icon */}
         <button className="absolute top-0 right-0 text-slate-400 hover:text-rose-500 transition-colors">
           <Heart className="w-5 h-5 stroke-[2]" />

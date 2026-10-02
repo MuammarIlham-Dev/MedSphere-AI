@@ -6,8 +6,8 @@ export const bloodService = {
   myBank: async (): Promise<BloodBank | null> => {
     const uid = (await supabase.auth.getUser()).data.user?.id;
     if (!uid) return null;
-    const res = await supabase.from('blood_banks').select('*').eq('owner_id', uid).maybeSingle();
-    return res.data as BloodBank | null;
+    const { data } = await supabase.from('blood_banks').select('*').eq('owner_id', uid).maybeSingle();
+    return data as BloodBank | null;
   },
 
   inventory: (bankId: string) =>

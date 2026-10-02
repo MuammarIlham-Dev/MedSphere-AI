@@ -16,5 +16,5 @@
     "baseUrl": ".",
     "paths": { "@/*": ["src/*"] }
   },
-  "include": ["src", "vite.config.ts", "tailwind.config.ts", "eslint.config.js", "medsphere-config.ts"]
+  "include": ["src", "vite.config.ts", "tailwind.config.ts", "eslint.config.js"]
 }

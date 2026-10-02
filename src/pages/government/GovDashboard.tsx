@@ -2,13 +2,18 @@ import { KpiCard, Skeleton, PageHeader } from '@/components/ui/KpiCard';
 import { PageTransition } from '@/components/transitions/PageTransition';
 import { ChartCard } from '@/components/charts/ChartCard';
 import { IoPeopleOutline, IoBusinessOutline, IoMedkitOutline, IoWaterOutline, IoBodyOutline, IoCalendarOutline } from 'react-icons/io5';
-import { useGovOverview } from '@/hooks/useAdmin';
+import { useGovOverview } from '@/hooks/queries/useAdminQueries';
+import { useRef } from 'react';
+import { useReveal } from '@/lib/gsap';
 
 export default function GovDashboard() {
   const { data: o, isLoading } = useGovOverview();
+  const rootRef = useRef<HTMLDivElement>(null);
+  useReveal(rootRef);
 
   return (
     <PageTransition>
+      <div ref={rootRef}>
       <PageHeader title="National public health overview"
         subtitle="Anonymized, aggregate statistics — no personally identifiable data is exposed at this level" />
       {isLoading ? (
@@ -59,6 +64,7 @@ export default function GovDashboard() {
           },
           options: { scales: { y: { max: 100 } } },
         }} />
+      </div>
       </div>
     </PageTransition>
   );

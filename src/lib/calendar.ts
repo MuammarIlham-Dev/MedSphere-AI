@@ -1,3 +1,4 @@
+import { formatDate } from '@/lib/utils';
 import { Appointment } from'@/types';
 
 export function downloadIcs(appointment: Appointment) {

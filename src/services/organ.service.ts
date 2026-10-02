@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { unwrap } from '@/lib/api';
-import type { OrganDonor, OrganMatch, OrganRecipient, OrganStats, RegisterDonorInput, RegisterRecipientInput, OrganType, BloodGroup } from '@/types';
+import type { OrganDonor, OrganMatch, OrganRecipient, OrganStats, RegisterDonorInput, RegisterRecipientInput } from '@/types';
 
 export const organService = {
   registerDonor: async (input: RegisterDonorInput): Promise<OrganDonor> => {
@@ -15,25 +15,6 @@ export const organService = {
     return unwrap(supabase.from('organ_recipients').insert({ ...input, profile_id: uid }).select().single());
   },
 
-  eligibleDonors: async (): Promise<Array<Pick<OrganDonor, 'id' | 'organs' | 'blood_group'> & { full_name: string }>> => {
-    const rows = await unwrap<Array<{ id: string; organs: OrganType[]; blood_group: BloodGroup; profiles: { full_name: string } | null }>>(
-      // @ts-expect-error supabase type mapping mismatch
-      supabase.from('organ_donors')
-        .select('id, organs, blood_group, profiles(full_name)')
-        .eq('status', 'active')
-        .eq('consent', 'granted')
-        .not('consent_file_id', 'is', null)
-        .not('medical_eligibility', 'is', null)
-        .order('registered_at', { ascending: false })
-    );
-    return rows.map((row) => ({
-      id: row.id,
-      organs: row.organs,
-      blood_group: row.blood_group,
-      full_name: row.profiles?.full_name ?? 'Unnamed donor'
-    }));
-  },
-
   /** Coordinator-only: invokes the SQL matching engine (assistive scoring). */
   runMatching: (donorId: string) =>
     unwrap<number>(supabase.rpc('run_organ_matching', { p_donor: donorId })),
@@ -43,7 +24,7 @@ export const organService = {
       .select(`*, organ_donors(profiles(full_name)), organ_recipients(priority_score, profiles(full_name))`)
       .order('compatibility_score', { ascending: false }).limit(100);
     if (status) q = q.eq('status', status);
-    const rows = await unwrap<Array<OrganMatch & { organ_donors?: { profiles?: { full_name: string } }; organ_recipients?: { priority_score: number; profiles?: { full_name: string } } }>>(q);
+    const rows = await unwrap<any[]>(q);
     return rows.map((r) => ({
       ...r,
       donor_name: r.organ_donors?.profiles?.full_name,

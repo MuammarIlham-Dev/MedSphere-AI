@@ -6,7 +6,7 @@ import { cn, formatTime } from '@/lib/utils';
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { IoMicOutline, IoVideocamOutline, IoShareOutline, IoSendOutline } from 'react-icons/io5';
-import { useChat } from '@/hooks/useChat';
+import { useChat } from '@/hooks/queries/useChatQueries';
 import { useAuthStore } from '@/stores/authStore';
 import { chatService } from '@/services/chat.service';
 import { supabase } from '@/lib/supabase';

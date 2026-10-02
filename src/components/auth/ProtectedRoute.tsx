@@ -1,5 +1,5 @@
-import { FullPageLoader } from '@/components/ui/Spinner';
 import { EmptyState } from '@/components/ui/KpiCard';
+import { FullPageLoader } from '@/components/ui/Spinner';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import type { PropsWithChildren } from 'react';
 import { useAuthStore } from '@/stores/authStore';

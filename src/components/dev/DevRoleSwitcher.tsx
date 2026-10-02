@@ -53,17 +53,17 @@ export function DevRoleSwitcher() {
     return (
       <button
         onClick={() => { setOpen(true); }}
-        className="fixed bottom-4 left-4 z-[9999] flex items-center gap-2 rounded-full border border-amber-400 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 shadow-lg transition hover:bg-amber-100 dark:border-amber-600 dark:bg-amber-950 dark:text-amber-300"
+        className="fixed bottom-4 right-4 lg:right-auto lg:left-4 z-[9999] flex items-center gap-1.5 sm:gap-2 rounded-full border border-amber-400 bg-amber-50/95 px-2.5 py-1.5 sm:px-3 text-[11px] sm:text-xs font-bold text-amber-700 shadow-lg backdrop-blur transition active:scale-95 hover:bg-amber-100 dark:border-amber-600 dark:bg-amber-950/90 dark:text-amber-300"
       >
         <span className="h-2 w-2 animate-pulse rounded-full bg-amber-500" />
-        DEV {bypassed ? `· ${role}` : '· click to bypass'}
+        <span className="hidden sm:inline">DEV</span> {bypassed ? `· ${role}` : '· bypass'}
       </button>
     );
   }
 
   // ── Expanded panel ────────────────────────────────────────────────────────
   return (
-    <div className="fixed bottom-4 left-4 z-[9999] w-64 rounded-2xl border border-amber-400/60 bg-white p-4 shadow-2xl dark:border-amber-600/40 dark:bg-slate-900">
+    <div className="fixed bottom-4 right-4 lg:right-auto lg:left-4 z-[9999] w-[calc(100vw-2rem)] max-w-xs rounded-2xl border border-amber-400/60 bg-white p-4 shadow-2xl backdrop-blur-md dark:border-amber-600/40 dark:bg-slate-900">
       {/* Header */}
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">

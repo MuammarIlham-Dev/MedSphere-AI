@@ -56,8 +56,8 @@ export default function Register() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface-soft p-4 dark:bg-surface-dark">
-      <Card className="w-full max-w-md p-8">
+    <div className="flex min-h-screen items-center justify-center bg-surface-soft px-4 py-8 sm:p-4 dark:bg-surface-dark">
+      <Card className="w-full max-w-md p-5 sm:p-8 shadow-card">
         <h1 className="text-2xl font-semibold tracking-tight">Create your account</h1>
         <p className="mt-1 text-sm text-slate-500">Your Digital Health ID is generated automatically.</p>
         <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-4" noValidate>

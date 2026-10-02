@@ -29,8 +29,8 @@ if %ERRORLEVEL% neq 0 (
 echo [1/2] Starting development server...
 echo.
 
-:: Start npm dev server in a new window
-start "MedSphere AI Dev Server" cmd /c "cd /d %~dp0 && npm run dev"
+:: Start npm dev server in a new window (with --host enabled)
+start "MedSphere AI Dev Server" cmd /c "cd /d %~dp0 && npm run dev -- --host"
 
 :: Wait for dev server to start
 echo Waiting for dev server to start...
@@ -45,7 +45,7 @@ set "TMPFILE=%TEMP%\cloudflared_output_%RANDOM%.txt"
 if exist "%TMPFILE%" del "%TMPFILE%"
 
 :: Start cloudflared quick tunnel in background and redirect output
-start "Cloudflare Tunnel" cmd /c "cloudflared tunnel --no-autoupdate --url http://localhost:5173 > "%TMPFILE%" 2>&1"
+start "Cloudflare Tunnel" cmd /c "cloudflared tunnel --no-autoupdate --url http://localhost:5173 --http-host-header localhost > "%TMPFILE%" 2>&1"
 
 echo Waiting for Cloudflare URL...
 set "TUNNEL_URL="

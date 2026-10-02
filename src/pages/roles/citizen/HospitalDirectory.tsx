@@ -1,4 +1,4 @@
-import { Select } from '@/components/ui/Input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/CustomSelect';
 import { useState, useEffect, useRef } from 'react';
 import { IoSearchOutline, IoCloseOutline } from 'react-icons/io5';
 import { MapPin, ChevronDown, ArrowDownUp, Building2, Stethoscope, Users } from 'lucide-react';
@@ -184,81 +184,53 @@ export function HospitalDirectory() {
     <PageTransition>
       <div className="space-y-6" ref={rootRef}>
         {/* Advanced Search & Filter Controls */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-4">
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-4 dark:bg-surface-dark-soft dark:border-white/10">
         {/* Dropdowns Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           {/* City */}
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <MapPin className="w-4 h-4 text-slate-400" />
-            </div>
-            <select
-              value={activeCity}
-              onChange={(e) => setActiveCity(e.target.value)}
-              className="w-full pl-9 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 appearance-none"
-            >
-              <option value="All">All Cities</option>
-              {cities?.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-              <ChevronDown className="w-4 h-4 text-slate-400" />
-            </div>
-          </div>
+          <Select value={activeCity} onValueChange={setActiveCity}>
+            <SelectTrigger className="py-2.5 text-sm" icon={<MapPin className="w-4 h-4" />}>
+              <SelectValue placeholder="All Cities" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">All Cities</SelectItem>
+              {cities?.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            </SelectContent>
+          </Select>
 
           {/* Hospital */}
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Building2 className="w-4 h-4 text-slate-400" />
-            </div>
-            <select
-              value={activeHospital}
-              onChange={(e) => setActiveHospital(e.target.value)}
-              className="w-full pl-9 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 appearance-none"
-            >
-              <option value="All">All Hospitals</option>
-              {hospitals?.map((h: string) => <option key={h} value={h}>{h}</option>)}
-            </select>
-            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-              <ChevronDown className="w-4 h-4 text-slate-400" />
-            </div>
-          </div>
+          <Select value={activeHospital} onValueChange={setActiveHospital}>
+            <SelectTrigger className="py-2.5 text-sm" icon={<Building2 className="w-4 h-4" />}>
+              <SelectValue placeholder="All Hospitals" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">All Hospitals</SelectItem>
+              {hospitals?.map((h: string) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+            </SelectContent>
+          </Select>
 
           {/* Department */}
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Stethoscope className="w-4 h-4 text-slate-400" />
-            </div>
-            <select
-              value={activeDept}
-              onChange={(e) => setActiveDept(e.target.value)}
-              className="w-full pl-9 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 appearance-none"
-            >
-              <option value="All">All Departments</option>
-              {departments?.map((d: string) => <option key={d} value={d}>{d}</option>)}
-            </select>
-            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-              <ChevronDown className="w-4 h-4 text-slate-400" />
-            </div>
-          </div>
+          <Select value={activeDept} onValueChange={setActiveDept}>
+            <SelectTrigger className="py-2.5 text-sm" icon={<Stethoscope className="w-4 h-4" />}>
+              <SelectValue placeholder="All Departments" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">All Departments</SelectItem>
+              {departments?.map((d: string) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+            </SelectContent>
+          </Select>
 
           {/* Gender */}
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Users className="w-4 h-4 text-slate-400" />
-            </div>
-            <select
-              value={activeGender}
-              onChange={(e) => setActiveGender(e.target.value)}
-              className="w-full pl-9 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 appearance-none"
-            >
-              <option value="All">All Genders</option>
-              <option value="Male">Male</option>
-              <option value="Female">Female</option>
-            </select>
-            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-              <ChevronDown className="w-4 h-4 text-slate-400" />
-            </div>
-          </div>
+          <Select value={activeGender} onValueChange={setActiveGender}>
+            <SelectTrigger className="py-2.5 text-sm" icon={<Users className="w-4 h-4" />}>
+              <SelectValue placeholder="All Genders" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">All Genders</SelectItem>
+              <SelectItem value="Male">Male</SelectItem>
+              <SelectItem value="Female">Female</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Search Bar Row */}
@@ -272,7 +244,7 @@ export function HospitalDirectory() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Type at least 3 characters to search by name or keyword..."
-              className="w-full pl-9 pr-10 py-2.5 bg-white border border-slate-200 rounded-lg text-[14px] text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 shadow-sm"
+              className="w-full pl-9 pr-10 py-2.5 bg-white border border-slate-200 rounded-lg text-[14px] text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 shadow-sm dark:bg-slate-900/50 dark:border-white/10 dark:text-slate-200 dark:placeholder:text-slate-500"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleSearch();
               }}
@@ -302,27 +274,23 @@ export function HospitalDirectory() {
         </div>
 
         {/* Sort and Clear Row */}
-        <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+        <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-white/5">
           <div className="flex items-center gap-2">
             <span className="text-[13px] text-slate-500 font-medium">Sort by:</span>
             <div className="relative flex items-center gap-2">
-              <div className="relative">
-                <select
-                  value={sort}
-                  onChange={(e) => setSort(e.target.value as SortKey)}
-                  className="pl-2 pr-8 py-1.5 bg-transparent border-none text-[13px] font-bold text-slate-700 focus:ring-0 cursor-pointer appearance-none"
-                >
-                  <option value="rating">Rating</option>
-                  <option value="fee">Fee</option>
-                  <option value="experience">Experience</option>
-                </select>
-                <div className="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none">
-                  <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
-                </div>
-              </div>
+              <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
+                <SelectTrigger className="h-8 py-1.5 px-2 border-none bg-transparent hover:bg-slate-100/50 text-[13px] font-bold text-slate-700 w-auto gap-1 focus:ring-0 shadow-none dark:text-slate-300 dark:hover:bg-slate-800">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent position="popper" align="start">
+                  <SelectItem value="rating">Rating</SelectItem>
+                  <SelectItem value="fee">Fee</SelectItem>
+                  <SelectItem value="experience">Experience</SelectItem>
+                </SelectContent>
+              </Select>
               <button
                 onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
-                className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors"
+                className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-400"
                 title={sortOrder === 'desc' ? 'High to Low' : 'Low to High'}
               >
                 <ArrowDownUp className="w-4 h-4" />

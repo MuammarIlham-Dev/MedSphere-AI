@@ -3,12 +3,15 @@ import type { ReactNode } from 'react';
 import { ToastHost } from '@/components/ui/ToastHost';
 import { NavLink, Outlet, useNavigate, Link } from 'react-router-dom';
 import { useMemo, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   IoGridOutline, IoCalendarOutline, IoVideocamOutline, IoWaterOutline,
   IoBodyOutline, IoMedkitOutline, IoStatsChartOutline, IoPeopleOutline,
   IoNotificationsOutline, IoMenuOutline, IoLogOutOutline, IoShieldCheckmarkOutline,
   IoBusinessOutline, IoChatbubbleOutline, IoSearchOutline, IoBeakerOutline, IoMedicalOutline, IoDocumentTextOutline,
+  IoCloseOutline,
 } from 'react-icons/io5';
+import { MobileBottomNav } from './MobileBottomNav';
 import { cn, initials, timeAgo } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
 import { useUiStore } from '@/stores/uiStore';
@@ -94,10 +97,10 @@ export function AppShell() {
   const navigate = useNavigate();
   const items = useMemo(() => (profile ? (NAV[profile.role] ?? NAV.citizen!) : []), [profile]);
 
-  const nav = (
-    <nav aria-label="Primary" className="flex flex-1 flex-col gap-1 p-3">
+  const renderNav = (onItemClick?: () => void) => (
+    <nav aria-label="Primary" className="flex flex-1 flex-col gap-1 p-3 overflow-y-auto">
       {items.map((item) => (
-        <NavLink key={item.to} to={item.to} end
+        <NavLink key={item.to} to={item.to} end onClick={onItemClick}
           className={({ isActive }) => cn(
             'flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-colors [&_svg]:h-5 [&_svg]:w-5',
             isActive
@@ -115,13 +118,10 @@ export function AppShell() {
     <div className="flex h-screen overflow-hidden">
       {/* Desktop sidebar */}
       <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-surface lg:flex dark:border-white/10 dark:bg-surface-dark-soft">
-        <div className="flex items-center gap-2.5 px-5 py-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-lift">
-            <IoMedkitOutline className="h-5 w-5" />
-          </div>
-          <span className="text-lg font-semibold tracking-tight">MedSphere <span className="text-brand-600">AI</span></span>
+        <div className="flex items-center gap-2.5 px-5">
+          <img src="/medshereai.logo.png" alt="MedSphere AI" className="h-24 w-auto object-contain" />
         </div>
-        {nav}
+        {renderNav()}
         <div className="border-t border-slate-100 p-3 dark:border-white/5">
           <button onClick={() => void signOut().then(() => navigate('/login'))}
             className="flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-500 hover:bg-slate-100 dark:hover:bg-surface-dark-muted">
@@ -131,12 +131,53 @@ export function AppShell() {
       </aside>
 
       {/* Mobile drawer */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-40 lg:hidden">
-          <div className="absolute inset-0 bg-slate-950/50" onClick={() => setSidebarOpen(false)} aria-hidden="true" />
-          <aside className="absolute left-0 top-0 flex h-full w-64 flex-col bg-surface dark:bg-surface-dark-soft">{nav}</aside>
-        </div>
-      )}
+      <AnimatePresence>
+        {sidebarOpen && (
+          <motion.div className="fixed inset-0 z-50 lg:hidden">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
+              onClick={() => setSidebarOpen(false)}
+              aria-hidden="true"
+            />
+            <motion.aside
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', bounce: 0, duration: 0.3 }}
+              className="absolute left-0 top-0 flex h-full w-72 flex-col bg-surface shadow-2xl dark:bg-surface-dark-soft"
+            >
+              <div className="flex items-center justify-between border-b border-slate-100 px-5 pt-2 dark:border-white/5">
+                <div className="flex items-center gap-2.5">
+                  <img src="/medshereai.logo.png" alt="MedSphere AI" className="h-20 w-auto object-contain" />
+                </div>
+                <button onClick={() => setSidebarOpen(false)} aria-label="Close menu" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-surface-dark-muted">
+                  <IoCloseOutline className="h-5 w-5" />
+                </button>
+              </div>
+              {renderNav(() => setSidebarOpen(false))}
+              <div className="border-t border-slate-100 p-4 dark:border-white/5 space-y-2">
+                <Link to="/app/profile" onClick={() => setSidebarOpen(false)} className="flex items-center gap-3 rounded-xl p-2 text-sm text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-surface-dark-muted">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-700 dark:bg-brand-900 dark:text-brand-200">
+                    {profile ? initials(profile.full_name) : '…'}
+                  </div>
+                  <div className="min-w-0 flex-1 truncate">
+                    <p className="text-sm font-medium truncate">{profile?.full_name}</p>
+                    <p className="text-xs text-slate-400 capitalize">{profile?.role.replace('_', ' ')}</p>
+                  </div>
+                </Link>
+                <button onClick={() => void signOut().then(() => navigate('/login'))}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40">
+                  <IoLogOutOutline className="h-5 w-5" /> Sign out
+                </button>
+              </div>
+            </motion.aside>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Main column */}
       <div className="flex min-w-0 flex-1 flex-col">
@@ -166,6 +207,7 @@ export function AppShell() {
           <Outlet />
         </main>
       </div>
+      {/* <MobileBottomNav /> disabled as requested */}
       <ToastHost />
     </div>
   );

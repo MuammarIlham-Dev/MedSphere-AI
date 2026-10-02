@@ -61,8 +61,8 @@ export default function Login() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface-soft p-4 dark:bg-surface-dark">
-      <Card className="w-full max-w-md p-8">
+    <div className="flex min-h-screen items-center justify-center bg-surface-soft px-4 py-8 sm:p-4 dark:bg-surface-dark">
+      <Card className="w-full max-w-md p-5 sm:p-8 shadow-card">
         <h1 className="text-2xl font-semibold tracking-tight">{mfaStep ? 'Two-factor verification' : 'Welcome back'}</h1>
         <p className="mt-1 text-sm text-slate-500">
           {mfaStep ? 'Enter the 6-digit code from your authenticator app.' : 'Sign in to your MedSphere account.'}

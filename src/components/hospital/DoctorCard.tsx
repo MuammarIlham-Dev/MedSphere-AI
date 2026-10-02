@@ -1,5 +1,6 @@
 import { Badge } from '@/components/ui/Badge';
 import React from "react";
+import { motion } from "framer-motion";
 import {
   CalendarDays,
   MapPin,
@@ -10,8 +11,33 @@ import {
   BadgeDollarSign,
   Building2,
   CircleUser,
-  Heart
+  Heart,
+  Brain,
+  Bone,
+  Eye,
+  Baby,
+  Activity,
+  Microscope,
+  Ear,
+  Sparkles
 } from "lucide-react";
+
+// Helper for department styling
+const getDepartmentStyle = (specialty: string) => {
+  const spec = specialty.toLowerCase();
+  
+  if (spec.includes('cardio')) return { icon: Heart, colors: 'bg-rose-100 text-rose-500', fill: 'fill-rose-500/50' };
+  if (spec.includes('neuro')) return { icon: Brain, colors: 'bg-purple-100 text-purple-600', fill: 'fill-purple-600/50' };
+  if (spec.includes('ortho')) return { icon: Bone, colors: 'bg-amber-100 text-amber-600', fill: 'fill-amber-600/50' };
+  if (spec.includes('opthal') || spec.includes('eye')) return { icon: Eye, colors: 'bg-cyan-100 text-cyan-600', fill: 'fill-cyan-600/50' };
+  if (spec.includes('pedia')) return { icon: Baby, colors: 'bg-pink-100 text-pink-500', fill: 'fill-pink-500/50' };
+  if (spec.includes('ent') || spec.includes('ear')) return { icon: Ear, colors: 'bg-orange-100 text-orange-600', fill: 'fill-orange-600/50' };
+  if (spec.includes('patho') || spec.includes('lab')) return { icon: Microscope, colors: 'bg-emerald-100 text-emerald-600', fill: 'fill-emerald-600/50' };
+  if (spec.includes('surge')) return { icon: Activity, colors: 'bg-red-100 text-red-600', fill: 'fill-red-600/50' };
+  if (spec.includes('derma')) return { icon: Sparkles, colors: 'bg-fuchsia-100 text-fuchsia-600', fill: 'fill-fuchsia-600/50' };
+  
+  return { icon: Stethoscope, colors: 'bg-blue-100 text-blue-600', fill: 'fill-blue-600/50' };
+};
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
 
@@ -49,6 +75,9 @@ export function DoctorCard({ doctor, style }: DoctorCardProps) {
   const reviewCount = Math.floor(Math.random() * 500) + 50;
   
   const specializations = doctor.specialty.split(',').map(s => s.trim()).filter(Boolean).slice(0, 3);
+  const primarySpecialty = specializations[0] || 'General';
+  const deptStyle = getDepartmentStyle(primarySpecialty);
+  const DeptIcon = deptStyle.icon;
   
   // Create a realistic description based on actual db data
   const description = `${doctor.full_name} is a renowned ${specializations[0] || 'Medical Professional'} with over ${doctor.experience_years || 10} years of experience in the field of ${doctor.specialty}. Dedicated to providing comprehensive and compassionate care to patients.`;
@@ -60,11 +89,15 @@ export function DoctorCard({ doctor, style }: DoctorCardProps) {
   const consultationFee = doctor.consultation_fee > 0 ? doctor.consultation_fee.toString() : '500';
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-20px" }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
       style={style}
       className={cn(
         "group w-full rounded-xl bg-white border border-slate-100 shadow-sm",
-        "transition-all duration-300 hover:shadow-md hover:border-blue-200",
+        "transition-all duration-300 lg:hover:shadow-lg lg:hover:border-blue-200 lg:hover:-translate-y-1",
         "flex flex-col lg:flex-row p-3.5 gap-4"
       )}
     >
@@ -100,10 +133,16 @@ export function DoctorCard({ doctor, style }: DoctorCardProps) {
 
       {/* Middle Column: Doctor Details */}
       <div className="flex-1 flex flex-col min-w-0 pt-1 pb-1 lg:pr-4">
-        {/* Department Pill */}
-        <div className="flex items-center gap-1.5 mb-2 w-fit px-1.5 py-1 rounded-lg bg-rose-100 text-rose-500">
-          <Heart className="w-3.5 h-3.5 stroke-[2.5] fill-rose-500/50" />
-          <span className="text-[11px] font-bold">{specializations[0] || 'General'}</span>
+        {/* Header row: Department Pill & Mobile Favorite */}
+        <div className="flex items-center justify-between mb-2">
+          <div className={cn("flex items-center gap-1.5 w-fit px-1.5 py-1 rounded-lg", deptStyle.colors)}>
+            <DeptIcon className={cn("w-3.5 h-3.5 stroke-[2.5]", deptStyle.fill)} />
+            <span className="text-[11px] font-bold">{primarySpecialty}</span>
+          </div>
+          {/* Favorite Icon (Mobile/Tablet only) */}
+          <button className="lg:hidden text-slate-400 hover:text-rose-500 transition-colors">
+            <Heart className="w-5 h-5 stroke-[2]" />
+          </button>
         </div>
         
         {/* Name */}
@@ -117,7 +156,7 @@ export function DoctorCard({ doctor, style }: DoctorCardProps) {
         </p>
 
         {/* Designation Chip */}
-        <div className="flex items-center gap-1.5 mb-2 w-fit px-1.5 py-1 rounded-lg bg-blue-50 text-blue-600">
+        <div className="hidden lg:flex items-center gap-1.5 mb-2 w-fit px-1.5 py-1 rounded-lg bg-blue-50 text-blue-600">
           <CircleUser className="w-4 h-4 stroke-[2]" />
           <span className="text-xs font-bold">{designation}</span>
         </div>
@@ -128,7 +167,7 @@ export function DoctorCard({ doctor, style }: DoctorCardProps) {
         </p>
 
         {/* Bottom Details Grid */}
-        <div className="mt-3 grid grid-cols-1 sm:grid-cols-[auto_auto_auto] justify-between gap-3 pt-3 border-t border-slate-250">
+        <div className="mt-3 flex items-center gap-6 lg:justify-between pt-3 border-t border-slate-250">
           <div className="flex items-center gap-1.5">
             <CalendarDays className="w-4 h-4 text-slate-600 stroke-[1.5] shrink-0 -mt-3" />
             <div className="flex flex-col min-w-0">
@@ -145,7 +184,7 @@ export function DoctorCard({ doctor, style }: DoctorCardProps) {
             </div>
           </div>
           
-          <div className="flex items-center gap-1.5">
+          <div className="hidden lg:flex items-center gap-1.5">
             <Building2 className="w-4 h-4 text-slate-600 stroke-[1.5] shrink-0 -mt-3" />
             <div className="flex flex-col min-w-0">
               <span className="text-[10px] font-bold text-slate-600 truncate">{credentials[0] || 'MBBS'}</span>
@@ -157,8 +196,8 @@ export function DoctorCard({ doctor, style }: DoctorCardProps) {
 
       {/* Right Column: Booking & Details */}
       <div className="shrink-0 w-full lg:w-[280px] xl:w-[300px] lg:pl-5 border-t lg:border-t-0 lg:border-l border-dashed border-slate-200 flex flex-col relative pt-1">
-        {/* Favorite Icon */}
-        <button className="absolute top-0 right-0 text-slate-400 hover:text-rose-500 transition-colors">
+        {/* Favorite Icon (Desktop only) */}
+        <button className="hidden lg:block absolute top-0 right-0 text-slate-400 hover:text-rose-500 transition-colors">
           <Heart className="w-5 h-5 stroke-[2]" />
         </button>
 
@@ -191,7 +230,7 @@ export function DoctorCard({ doctor, style }: DoctorCardProps) {
           </div>
 
           {/* Specializations */}
-          <div className="flex gap-2 items-start">
+          <div className="hidden lg:flex gap-2 items-start">
             <Stethoscope className="w-4.5 h-4.5 text-[#1a4a8d] stroke-[2.5] bg-[#1a4a8d]/10 rounded-lg p-1 shrink-0" />
             <div className="flex flex-col">
               <span className="text-[12px] font-semibold text-slate-700 mb-0.5">Specializations</span>
@@ -224,6 +263,6 @@ export function DoctorCard({ doctor, style }: DoctorCardProps) {
           </a>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

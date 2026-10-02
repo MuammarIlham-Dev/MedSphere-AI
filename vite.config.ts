@@ -5,6 +5,16 @@ import { VitePWA } from 'vite-plugin-pwa';
 import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
+  server: {
+    host: true,
+    port: 5173,
+    allowedHosts: true,
+  },
+  preview: {
+    host: true,
+    port: 5173,
+    allowedHosts: true,
+  },
   plugins: [
     react(),
     VitePWA({

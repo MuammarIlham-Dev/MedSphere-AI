@@ -36,11 +36,11 @@ export default function CitizenDashboard() {
         <PageHeader title={`Hello, ${profile?.full_name.split(' ')[0] ?? 'there'}`}
           subtitle={`Digital Health ID: ${profile?.digital_health_id ?? '—'}`}
           actions={
-            <div className="flex gap-2">
-              <Button variant="secondary" onClick={() => setShowAiChecker(true)} className="gap-2 text-brand-600 border-brand-200 bg-brand-50 hover:bg-brand-100">
+            <div className="flex flex-wrap sm:flex-nowrap gap-2 w-full sm:w-auto">
+              <Button variant="secondary" onClick={() => setShowAiChecker(true)} className="flex-1 sm:flex-initial gap-2 text-brand-600 border-brand-200 bg-brand-50 hover:bg-brand-100">
                 <Sparkles className="w-4 h-4" /> AI Symptom Checker
               </Button>
-              <Link to="/app/emergency"><Button variant="danger">Emergency SOS</Button></Link>
+              <Link to="/app/emergency" className="flex-1 sm:flex-initial"><Button variant="danger" className="w-full">Emergency SOS</Button></Link>
             </div>
           } />
 

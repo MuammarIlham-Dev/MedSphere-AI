@@ -21,16 +21,21 @@ describe('generateSlots', () => {
       { ...clinicSchedule, id: 'other-day', weekday: 5, type: 'video' },
     ], [], new Date('2099-01-08T00:00:00'));
 
-    expect(slots.map((slot: any) => slot.start.slice(11, 16))).toEqual(['09:00', '09:20', '09:40']);
+    const times = slots.map((s: any) => {
+      const d = new Date(s.start);
+      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    });
+    expect(times).toEqual(['09:00', '09:20', '09:40']);
     expect(slots.every((slot: any) => slot.type === 'clinic' && slot.available)).toBe(true);
   });
 
   it('marks a persisted appointment as unavailable', () => {
     vi.setSystemTime(new Date('2099-01-01T00:00:00Z'));
-    const booked = new Date('2099-01-08T09:20:00').toISOString();
+    const initialSlots = generateSlots([clinicSchedule], [], new Date('2099-01-08T00:00:00'));
+    const booked = initialSlots[1]?.start ?? '';
     const slots = generateSlots([clinicSchedule], [booked], new Date('2099-01-08T00:00:00'));
 
-    expect(slots.find((slot: any) => slot.start.includes('09:20'))?.available).toBe(false);
+    expect(slots[1]?.available).toBe(false);
     expect(slots.filter((slot: any) => slot.available)).toHaveLength(2);
   });
 });

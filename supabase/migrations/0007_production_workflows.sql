@@ -49,23 +49,6 @@ begin
   end loop;
 end $$;
 
--- Automatically downgrade doctors to pending if specialty or license_no changes
-create or replace function public.protect_doctor_fields() returns trigger
-language plpgsql security definer set search_path = public as $$
-begin
-  if public.is_admin() then return new; end if;
-  
-  if old.verification = 'verified' and (new.specialty is distinct from old.specialty or new.license_no is distinct from old.license_no) then
-    new.verification := 'pending';
-  end if;
-  
-  return new;
-end $$;
-
-drop trigger if exists protect_doctor_fields on public.doctors;
-create trigger protect_doctor_fields before update on public.doctors
-for each row execute function public.protect_doctor_fields();
-
 -- Restore the clinical policies lost when medical_records became partitioned.
 drop policy if exists "Data Residency: Regional Read Access" on public.medical_records;
 drop policy if exists records_read on public.medical_records;
@@ -188,17 +171,15 @@ grant execute on function public.transition_appointment(uuid, appointment_status
 drop policy if exists appointments_update on public.appointments;
 
 -- Persist a consultation note and optional free-text prescription in one authorized transaction.
-drop function if exists public.record_consultation(uuid, text, text, text, text);
 create or replace function public.record_consultation(
   p_appointment_id uuid,
   p_title text,
   p_diagnosis text,
   p_notes text,
-  p_prescription_notes text default null,
-  p_prescription_items jsonb default null
+  p_prescription_notes text default null
 ) returns uuid
 language plpgsql security definer set search_path = public as $$
-declare appt public.appointments; caller_doctor uuid; record_id uuid; rx_id uuid; item jsonb;
+declare appt public.appointments; caller_doctor uuid; record_id uuid;
 begin
   select id into caller_doctor from public.doctors where profile_id = auth.uid() and verification = 'verified';
   if caller_doctor is null then raise exception 'verified doctor required'; end if;
@@ -216,31 +197,16 @@ begin
     nullif(trim(p_notes), ''), coalesce((select region_id from public.profiles where id = appt.patient_id), 'national')
   ) returning id into record_id;
 
-  if nullif(trim(p_prescription_notes), '') is not null or (p_prescription_items is not null and jsonb_array_length(p_prescription_items) > 0) then
+  if nullif(trim(p_prescription_notes), '') is not null then
     insert into public.prescriptions (appointment_id, patient_id, doctor_id, notes)
-    values (appt.id, appt.patient_id, caller_doctor, trim(p_prescription_notes))
-    returning id into rx_id;
-    
-    if p_prescription_items is not null and jsonb_typeof(p_prescription_items) = 'array' then
-      for item in select * from jsonb_array_elements(p_prescription_items) loop
-        insert into public.prescription_items (prescription_id, medicine_id, dosage, frequency, duration_days, instructions)
-        values (
-          rx_id,
-          (item->>'medicine_id')::uuid,
-          item->>'dosage',
-          item->>'frequency',
-          (item->>'duration_days')::int,
-          item->>'instructions'
-        );
-      end loop;
-    end if;
+    values (appt.id, appt.patient_id, caller_doctor, trim(p_prescription_notes));
   end if;
 
   return record_id;
 end $$;
 
-revoke all on function public.record_consultation(uuid, text, text, text, text, jsonb) from public;
-grant execute on function public.record_consultation(uuid, text, text, text, text, jsonb) to authenticated;
+revoke all on function public.record_consultation(uuid, text, text, text, text) from public;
+grant execute on function public.record_consultation(uuid, text, text, text, text) to authenticated;
 
 -- Compute recipient priority from NEW values rather than stale table state.
 create or replace function public.refresh_recipient_priority() returns trigger

@@ -80,8 +80,7 @@ create table public.doctor_schedules (
   slot_minutes int not null default 15 check (slot_minutes between 5 and 120),
   type consultation_type not null,
   is_active boolean not null default true,
-  check (end_time > start_time),
-  unique (doctor_id, weekday)
+  check (end_time > start_time)
 );
 create index doctor_schedules_idx on public.doctor_schedules(doctor_id, weekday);
 

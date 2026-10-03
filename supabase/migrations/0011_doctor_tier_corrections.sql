@@ -6,7 +6,7 @@ WITH duplicates AS (
     SELECT id,
            ROW_NUMBER() OVER (
                PARTITION BY doctor_id, weekday, type
-               ORDER BY is_active DESC, updated_at DESC
+               ORDER BY is_active DESC, id DESC
            ) as row_num
     FROM public.doctor_schedules
 )
@@ -31,7 +31,7 @@ AS $$
 BEGIN
   -- Handle rating updates securely using a local transaction variable
   IF (NEW.rating_avg IS DISTINCT FROM OLD.rating_avg OR NEW.rating_count IS DISTINCT FROM OLD.rating_count) THEN
-    IF current_setting('medsphere.internal_update', true) != 'true' THEN
+    IF current_setting('medsphere.internal_update', true) IS DISTINCT FROM 'true' THEN
       RAISE EXCEPTION 'Doctor ratings are managed automatically and cannot be modified directly';
     END IF;
   END IF;
@@ -51,6 +51,12 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+DROP TRIGGER IF EXISTS tr_protect_doctor_fields ON public.doctors;
+CREATE TRIGGER tr_protect_doctor_fields
+BEFORE UPDATE ON public.doctors
+FOR EACH ROW
+EXECUTE FUNCTION public.protect_doctor_fields();
 
 -- Trigger to calculate ratings on feedback and apply to doctors securely
 CREATE OR REPLACE FUNCTION public.update_doctor_rating()
@@ -97,8 +103,15 @@ AFTER INSERT OR UPDATE OF rating OR DELETE ON public.appointment_feedback
 FOR EACH ROW
 EXECUTE FUNCTION public.update_doctor_rating();
 
+-- 3. Add amount_charged column to appointments (if not exists)
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'appointments' AND column_name = 'amount_charged') THEN
+    ALTER TABLE public.appointments ADD COLUMN amount_charged numeric(10,2);
+  END IF;
+END $$;
 
--- 3. Freeze amount_charged
+-- 4. Freeze amount_charged
 CREATE OR REPLACE FUNCTION public.freeze_amount_charged()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -117,187 +130,136 @@ BEFORE UPDATE ON public.appointments
 FOR EACH ROW
 EXECUTE FUNCTION public.freeze_amount_charged();
 
--- 4. Backfill existing appointments amount_charged
+-- 5. Backfill existing appointments amount_charged
 UPDATE public.appointments a
 SET amount_charged = (SELECT consultation_fee FROM public.doctors d WHERE d.id = a.doctor_id)
 WHERE a.amount_charged IS NULL;
 
--- 5. Book Appointment - Asia/Dhaka timezone
+-- 6. Clean up overloaded functions from previous incorrect migrations
+DROP FUNCTION IF EXISTS public.book_appointment(uuid, uuid, timestamptz, integer, text, text, text[]);
+DROP FUNCTION IF EXISTS public.record_consultation(uuid, text, text, text, text);
+DROP FUNCTION IF EXISTS public.record_consultation(uuid, text, text, text, jsonb);
+
+-- 7. Book Appointment - Asia/Dhaka timezone + 0007 logic + amount_charged
 CREATE OR REPLACE FUNCTION public.book_appointment(
   p_doctor_id uuid,
   p_hospital_id uuid,
   p_scheduled_at timestamptz,
-  p_duration_min integer,
-  p_type text,
-  p_reason text,
-  p_symptoms text[] DEFAULT NULL
-)
-RETURNS public.appointments
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-  v_patient_id uuid;
+  p_duration_min int,
+  p_type consultation_type,
+  p_reason text default null
+) returns public.appointments
+language plpgsql security definer set search_path = public as $$
+declare
+  result public.appointments;
+  next_token int;
+  requested_day date := (p_scheduled_at at time zone 'Asia/Dhaka')::date;
+  requested_time time := (p_scheduled_at at time zone 'Asia/Dhaka')::time;
+  requested_dow int := extract(dow from p_scheduled_at at time zone 'Asia/Dhaka');
   v_doctor_fee numeric(10,2);
-  v_doc_status text;
-  v_weekday integer;
-  v_time time;
-  v_schedule record;
-  v_overlap boolean;
-  v_appointment public.appointments;
-BEGIN
-  -- 1. Identify patient
-  SELECT id INTO v_patient_id FROM public.patients WHERE profile_id = auth.uid();
-  IF v_patient_id IS NULL THEN
-    RAISE EXCEPTION 'Authentication required: User is not a registered patient';
-  END IF;
+begin
+  if auth.uid() is null then raise exception 'authentication required'; end if;
+  if p_scheduled_at <= now() then raise exception 'appointment must be in the future'; end if;
+  if p_duration_min not between 5 and 120 then raise exception 'invalid duration'; end if;
 
-  -- 2. Verify doctor and get fee
-  SELECT verification, consultation_fee INTO v_doc_status, v_doctor_fee 
-  FROM public.doctors 
-  WHERE id = p_doctor_id;
-  
-  IF v_doc_status != 'verified' THEN
-    RAISE EXCEPTION 'Doctor is unavailable for this consultation';
-  END IF;
+  select consultation_fee into v_doctor_fee
+  from public.doctors d
+  where d.id = p_doctor_id and d.verification = 'verified'
+    and (p_hospital_id is null or d.hospital_id = p_hospital_id)
+    and ((p_type = 'video' and d.video_enabled) or (p_type = 'clinic' and d.clinic_enabled));
 
-  -- 3. Extract Schedule Dimensions using Asia/Dhaka timezone
-  v_weekday := EXTRACT(DOW FROM (p_scheduled_at AT TIME ZONE 'Asia/Dhaka'));
-  v_time := (p_scheduled_at AT TIME ZONE 'Asia/Dhaka')::time;
+  if not found then raise exception 'doctor is unavailable for this consultation'; end if;
 
-  -- 4. Validate schedule bounds
-  SELECT * INTO v_schedule
-  FROM public.doctor_schedules
-  WHERE doctor_id = p_doctor_id
-    AND weekday = v_weekday
-    AND type = p_type
-    AND is_active = true
-    AND v_time >= start_time
-    AND (v_time + (p_duration_min || ' minutes')::interval) <= end_time;
+  if not exists (
+    select 1 from public.doctor_schedules s
+    where s.doctor_id = p_doctor_id and s.is_active and s.type = p_type
+      and s.weekday = requested_dow
+      and requested_time >= s.start_time
+      and requested_time + make_interval(mins => p_duration_min) <= s.end_time
+      and mod(extract(epoch from (requested_time - s.start_time))::int / 60, s.slot_minutes) = 0
+  ) then raise exception 'requested time is outside the doctor schedule'; end if;
 
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Selected time slot is outside of valid operating hours or schedule is inactive';
-  END IF;
+  perform pg_advisory_xact_lock(hashtextextended(p_doctor_id::text || requested_day::text, 0));
 
-  IF p_duration_min != v_schedule.slot_minutes THEN
-    RAISE EXCEPTION 'Invalid appointment duration for this schedule';
-  END IF;
+  if exists (
+    select 1 from public.appointments a
+    where a.doctor_id = p_doctor_id
+      and a.status not in ('cancelled', 'no_show')
+      and tstzrange(a.scheduled_at, a.scheduled_at + make_interval(mins => a.duration_min), '[)')
+          && tstzrange(p_scheduled_at, p_scheduled_at + make_interval(mins => p_duration_min), '[)')
+  ) then raise exception 'this appointment slot is no longer available'; end if;
 
-  -- 5. Concurrency lock on the schedule row
-  PERFORM 1 FROM public.doctor_schedules WHERE id = v_schedule.id FOR UPDATE;
+  select coalesce(max(token_number), 0) + 1 into next_token
+  from public.appointments where doctor_id = p_doctor_id and day = requested_day;
 
-  -- 6. Check for precise overlaps
-  SELECT EXISTS (
-    SELECT 1 FROM public.appointments
-    WHERE doctor_id = p_doctor_id
-      AND status NOT IN ('cancelled', 'completed')
-      AND (
-        (scheduled_at <= p_scheduled_at AND (scheduled_at + (duration_min || ' minutes')::interval) > p_scheduled_at)
-        OR
-        (scheduled_at < (p_scheduled_at + (p_duration_min || ' minutes')::interval) AND (scheduled_at + (duration_min || ' minutes')::interval) >= (p_scheduled_at + (p_duration_min || ' minutes')::interval))
-        OR
-        (scheduled_at >= p_scheduled_at AND (scheduled_at + (duration_min || ' minutes')::interval) <= (p_scheduled_at + (p_duration_min || ' minutes')::interval))
-      )
-  ) INTO v_overlap;
+  insert into public.appointments (
+    patient_id, doctor_id, hospital_id, scheduled_at, duration_min, type, status, token_number, reason, amount_charged
+  ) values (
+    auth.uid(), p_doctor_id, p_hospital_id, p_scheduled_at, p_duration_min, p_type, 'booked', next_token, nullif(trim(p_reason), ''), v_doctor_fee
+  ) returning * into result;
 
-  IF v_overlap THEN
-    RAISE EXCEPTION 'The requested time slot overlaps with an existing appointment';
-  END IF;
+  return result;
+end $$;
 
-  -- 7. Insert securely
-  INSERT INTO public.appointments (
-    patient_id,
-    doctor_id,
-    hospital_id,
-    scheduled_at,
-    duration_min,
-    type,
-    status,
-    reason,
-    symptoms,
-    amount_charged
-  ) VALUES (
-    v_patient_id,
-    p_doctor_id,
-    p_hospital_id,
-    p_scheduled_at,
-    p_duration_min,
-    p_type,
-    'scheduled',
-    p_reason,
-    p_symptoms,
-    v_doctor_fee
-  ) RETURNING * INTO v_appointment;
+revoke all on function public.book_appointment(uuid, uuid, timestamptz, int, consultation_type, text) from public;
+grant execute on function public.book_appointment(uuid, uuid, timestamptz, int, consultation_type, text) to authenticated;
 
-  RETURN v_appointment;
-END;
-$$;
-
--- 6. Restore record_consultation Security Checks
-CREATE OR REPLACE FUNCTION public.record_consultation(
+-- 8. Restore record_consultation Security Checks matching 0007 architecture + JSONB prescriptions
+create or replace function public.record_consultation(
   p_appointment_id uuid,
   p_title text,
   p_diagnosis text,
   p_notes text,
-  p_prescription_items jsonb DEFAULT '[]'::jsonb
-)
-RETURNS public.consultations
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-  v_appointment record;
-  v_consultation public.consultations;
-  v_item jsonb;
-  v_doctor_id uuid;
-  v_doc_status text;
-BEGIN
-  -- Verify caller is the doctor assigned
-  SELECT id INTO v_doctor_id FROM public.doctors WHERE profile_id = auth.uid();
+  p_prescription_notes text default null,
+  p_prescription_items jsonb default null
+) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare appt public.appointments; caller_doctor uuid; record_id uuid; rx_id uuid; item jsonb;
+begin
+  select id into caller_doctor from public.doctors where profile_id = auth.uid() and verification = 'verified';
+  if caller_doctor is null then raise exception 'verified doctor required'; end if;
+
+  select * into appt from public.appointments where id = p_appointment_id and doctor_id = caller_doctor for update;
+  if not found or appt.status not in ('confirmed', 'checked_in', 'in_progress', 'completed') then
+    raise exception 'an active treatment relationship is required';
+  end if;
+  if nullif(trim(p_title), '') is null then raise exception 'record title is required'; end if;
+
+  insert into public.medical_records (
+    patient_id, doctor_id, appointment_id, type, title, diagnosis, notes
+  ) values (
+    appt.patient_id, caller_doctor, appt.id, 'consultation', trim(p_title), nullif(trim(p_diagnosis), ''),
+    nullif(trim(p_notes), '')
+  ) returning id into record_id;
+
+  if nullif(trim(p_prescription_notes), '') is not null or (p_prescription_items is not null and jsonb_array_length(p_prescription_items) > 0) then
+    insert into public.prescriptions (appointment_id, patient_id, doctor_id, notes)
+    values (appt.id, appt.patient_id, caller_doctor, nullif(trim(p_prescription_notes), ''))
+    returning id into rx_id;
+
+    if p_prescription_items is not null then
+      for item in select * from jsonb_array_elements(p_prescription_items) loop
+        insert into public.prescription_items (
+          prescription_id, medicine_id, custom_medicine_name, dosage, frequency, duration_days, instructions
+        ) values (
+          rx_id,
+          nullif(trim(item->>'medicine_id'), '')::uuid,
+          nullif(trim(item->>'custom_medicine_name'), ''),
+          nullif(trim(item->>'dosage'), ''),
+          nullif(trim(item->>'frequency'), ''),
+          (item->>'duration_days')::int,
+          nullif(trim(item->>'instructions'), '')
+        );
+      end loop;
+    end if;
+  end if;
   
-  SELECT * INTO v_appointment 
-  FROM public.appointments 
-  WHERE id = p_appointment_id 
-    AND doctor_id = v_doctor_id
-  FOR UPDATE;
+  -- Update appointment status to completed if it's currently in progress
+  update public.appointments set status = 'completed' where id = p_appointment_id and status = 'in_progress';
 
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Appointment not found or not assigned to the authenticated doctor';
-  END IF;
+  return record_id;
+end $$;
 
-  -- Verify doctor is verified
-  SELECT verification INTO v_doc_status FROM public.doctors WHERE id = v_doctor_id;
-  IF v_doc_status != 'verified' THEN
-    RAISE EXCEPTION 'Doctor is not verified';
-  END IF;
+revoke all on function public.record_consultation(uuid, text, text, text, text, jsonb) from public;
+grant execute on function public.record_consultation(uuid, text, text, text, text, jsonb) to authenticated;
 
-  -- Verify appointment state
-  IF v_appointment.status NOT IN ('confirmed', 'checked_in', 'in_progress', 'completed') THEN
-    RAISE EXCEPTION 'Cannot record consultation for an appointment with status: %', v_appointment.status;
-  END IF;
-
-  -- Insert consultation
-  INSERT INTO public.consultations (
-    appointment_id, patient_id, doctor_id, title, diagnosis, notes
-  ) VALUES (
-    p_appointment_id, v_appointment.patient_id, v_appointment.doctor_id, p_title, p_diagnosis, p_notes
-  ) RETURNING * INTO v_consultation;
-
-  -- Process prescription items
-  FOR v_item IN SELECT * FROM jsonb_array_elements(p_prescription_items)
-  LOOP
-    INSERT INTO public.prescriptions (
-      consultation_id, patient_id, doctor_id, medication_name, dosage, frequency, duration_days, instructions
-    ) VALUES (
-      v_consultation.id, v_appointment.patient_id, v_appointment.doctor_id,
-      v_item->>'medication_name', v_item->>'dosage', v_item->>'frequency',
-      (v_item->>'duration_days')::integer, v_item->>'instructions'
-    );
-  END LOOP;
-
-  -- Update appointment status
-  UPDATE public.appointments SET status = 'completed' WHERE id = p_appointment_id;
-
-  RETURN v_consultation;
-END;
-$$;

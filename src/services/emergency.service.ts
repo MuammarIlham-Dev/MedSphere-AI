@@ -9,13 +9,9 @@ export const emergencyService = {
     const uid = (await supabase.auth.getUser()).data.user?.id;
     if (!uid) throw new ApiError('AUTH', 'Not signed in');
     const emergency = await unwrap<Emergency>(
-      supabase.rpc('trigger_emergency_sos', { p_lat: input.lat, p_lng: input.lng, p_type: input.type ?? 'medical' })
+      supabase.rpc('trigger_emergency_sos', { p_lat: input.lat, p_lng: input.lng, p_type: input.type ?? 'medical', p_address: input.address ?? null })
     );
     
-    if (input.address && !emergency.address) {
-       await supabase.from('emergencies').update({ address: input.address }).eq('id', emergency.id);
-       emergency.address = input.address;
-    }
     await publish(`sos:${input.city ?? 'national'}`, 'sos:new', { emergency });
     return emergency;
   },

@@ -34,6 +34,7 @@ describe('emergency.service', () => {
       p_lat: 10,
       p_lng: 20,
       p_type: 'medical',
+      p_address: null
     });
     
     expect(publish).toHaveBeenCalledWith('sos:Dhaka', 'sos:new', { emergency: mockEmergency });

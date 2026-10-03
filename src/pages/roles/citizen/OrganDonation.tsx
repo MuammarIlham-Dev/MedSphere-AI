@@ -57,9 +57,9 @@ export default function OrganDonation() {
     register({
       blood_group: bloodGroup as BloodGroup,
       organs: selectedOrgans,
-      has_consent: hasConsent,
+      consent: 'pending',
       hla: []
-    } as any);
+    });
   };
 
   if (isLoading) return <div className="p-8 text-center text-slate-400">Loading donor profile...</div>;
@@ -83,7 +83,11 @@ export default function OrganDonation() {
             <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
               <div>
                 <div className="flex items-center gap-3 mb-2">
-                  <Badge tone="success">Registered Donor</Badge>
+                  {donorProfile?.consent === 'pending' ? (
+                    <Badge tone="warning">Pending Verification</Badge>
+                  ) : (
+                    <Badge tone="success">Registered Donor</Badge>
+                  )}
                   <span className="text-sm text-slate-400">ID: {donorProfile?.id.split('-')[0]?.toUpperCase()}</span>
                 </div>
                 <h2 className="text-3xl font-bold text-slate-100">{profile?.full_name ?? 'User'}</h2>

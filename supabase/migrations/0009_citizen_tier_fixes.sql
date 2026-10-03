@@ -40,13 +40,20 @@ create policy blood_donors_read on public.blood_donors for select using (
   profile_id = auth.uid() or public.is_admin() or public.current_role() in ('hospital', 'blood_bank')
 );
 
+-- Allow authenticated users to view blood requests
+drop policy if exists blood_requests_read on public.blood_requests;
+create policy blood_requests_read on public.blood_requests for select using (
+  auth.role() = 'authenticated'
+);
+
 
 -- 3. Emergency SOS Atomic Duplicate Prevention
 -- Create an atomic RPC that checks for existing active emergencies before inserting
 create or replace function public.trigger_emergency_sos(
   p_lat double precision,
   p_lng double precision,
-  p_type text default 'medical'
+  p_type text default 'medical',
+  p_address text default null
 ) returns public.emergencies
 language plpgsql security definer set search_path = public as $$
 declare
@@ -60,22 +67,26 @@ begin
   perform pg_advisory_xact_lock(hashtextextended('sos_' || auth.uid()::text, 0));
 
   select * into result from public.emergencies 
-  where reporter_id = auth.uid() and status = 'active'
+  where reporter_id = auth.uid() and status in ('active', 'dispatched', 'on_scene', 'transporting', 'arrived')
   limit 1;
 
   if found then
     return result;
   end if;
 
-  insert into public.emergencies (reporter_id, type, status, lat, lng)
-  values (auth.uid(), p_type, 'active', p_lat, p_lng)
+  insert into public.emergencies (reporter_id, type, status, lat, lng, address)
+  values (auth.uid(), p_type, 'active', p_lat, p_lng, p_address)
   returning * into result;
+
+  if result is null then
+    raise exception 'Failed to create emergency SOS';
+  end if;
 
   return result;
 end $$;
 
-revoke all on function public.trigger_emergency_sos(double precision, double precision, text) from public;
-grant execute on function public.trigger_emergency_sos(double precision, double precision, text) to authenticated;
+revoke all on function public.trigger_emergency_sos(double precision, double precision, text, text) from public;
+grant execute on function public.trigger_emergency_sos(double precision, double precision, text, text) to authenticated;
 
 
 -- 5. Appointment Timezone/Schedule Consistency
@@ -131,14 +142,17 @@ begin
   from public.appointments where doctor_id = p_doctor_id and day = requested_day;
 
   insert into public.appointments (
-    patient_id, doctor_id, hospital_id, scheduled_at, duration_min, type, status, token_number, reason
+    patient_id, doctor_id, hospital_id, scheduled_at, duration_min, type, status, token_number, reason, day
   ) values (
-    auth.uid(), p_doctor_id, p_hospital_id, p_scheduled_at, p_duration_min, p_type, 'booked', next_token, nullif(trim(p_reason), '')
+    auth.uid(), p_doctor_id, p_hospital_id, p_scheduled_at, p_duration_min, p_type, 'booked', next_token, nullif(trim(p_reason), ''), requested_day
   ) returning * into result;
 
   return result;
 end $$;
 
--- Drop and recreate the `day` generated column on `appointments` to use Asia/Dhaka
-alter table public.appointments drop column if exists day;
-alter table public.appointments add column day date generated always as ((scheduled_at at time zone 'Asia/Dhaka')::date) stored;
+-- Fix the `day` column on `appointments` to be explicit rather than generated
+alter table public.appointments drop column if exists day cascade;
+alter table public.appointments add column day date;
+update public.appointments set day = (scheduled_at at time zone 'Asia/Dhaka')::date;
+alter table public.appointments alter column day set not null;
+alter table public.appointments add constraint appointments_doctor_id_day_token_number_key unique (doctor_id, day, token_number);

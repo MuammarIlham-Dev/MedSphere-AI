@@ -8,7 +8,23 @@ import type { DoctorCard, DoctorSearchFilters, DoctorSchedule } from '@/types';
 
 export const doctorService = {
   async getMyDoctor(profileId: string) {
-    return unwrap<any>(supabase.from('doctors').select('*').eq('profile_id', profileId).maybeSingle());
+    return unwrap<{ id: string; verification: string; specialty: string; rating_avg: number; rating_count: number; [key: string]: any } | null>(
+      supabase.from('doctors').select('*').eq('profile_id', profileId).maybeSingle()
+    );
+  },
+
+  async apply(profileId: string, data: { specialty: string; license_no: string; experience_years: number; qualifications: string[]; consultation_fee: number }) {
+    return unwrap(
+      supabase.from('doctors').insert({
+        profile_id: profileId,
+        specialty: data.specialty,
+        license_no: data.license_no,
+        experience_years: data.experience_years,
+        qualifications: data.qualifications,
+        consultation_fee: data.consultation_fee,
+        verification: 'pending',
+      })
+    );
   },
 
   async search(filters: DoctorSearchFilters): Promise<DoctorCard[]> {

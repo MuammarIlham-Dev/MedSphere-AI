@@ -44,14 +44,11 @@ export const appointmentService = {
       p_reason: cancelReason
     })),
 
-  reschedule: (id: string, when: string) =>
-    unwrap(supabase.from('appointments').update({ scheduled_at: when, status: 'rescheduled' }).eq('id', id).select().single()),
 
   getDoctorSchedules: async (doctorId: string) => {
     return unwrap(supabase.from('doctor_schedules')
       .select('*')
       .eq('doctor_id', doctorId)
-      .eq('is_active', true)
       .order('weekday'));
   },
 

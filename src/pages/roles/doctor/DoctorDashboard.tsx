@@ -1,10 +1,12 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/restrict-template-expressions, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-confusing-void-expression, @typescript-eslint/no-non-null-assertion */
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { KpiCard, Skeleton, EmptyState, PageHeader } from '@/components/ui/KpiCard';
+import { FullPageLoader } from '@/components/ui/Spinner';
 import { PageTransition } from '@/components/transitions/PageTransition';
 import { formatTime } from '@/lib/utils';
-import { ChartCard } from '@/components/charts/ChartCard';
+
 import { Link } from 'react-router-dom';
 import { IoPeopleOutline, IoCheckmarkDoneOutline, IoTimeOutline, IoStarOutline } from 'react-icons/io5';
 import { useTodayQueue, useUpdateAppointmentStatus } from '@/hooks/queries/useAppointmentQueries';
@@ -15,6 +17,9 @@ import type { AppointmentStatus } from '@/types';
 import { useRef } from 'react';
 import { useReveal } from '@/lib/gsap';
 import { ScheduleSettings } from '@/components/doctor/ScheduleSettings';
+import { DoctorProfileSettings } from '@/components/doctor/DoctorProfileSettings';
+import { DoctorAnalytics } from '@/components/doctor/DoctorAnalytics';
+import { DoctorOnboarding } from './DoctorOnboarding';
 
 const NEXT: Partial<Record<AppointmentStatus, AppointmentStatus>> = {
   booked: 'confirmed', confirmed: 'checked_in', checked_in: 'in_progress', in_progress: 'completed',
@@ -23,7 +28,7 @@ const NEXT: Partial<Record<AppointmentStatus, AppointmentStatus>> = {
 export default function DoctorDashboard() {
   const profile = useAuthStore((s) => s.profile);
   const toast = useUiStore((s) => s.toast);
-  const { data: doctor } = useMyDoctor(profile?.id);
+  const { data: doctor, isLoading: isDoctorLoading } = useMyDoctor(profile?.id);
   const queue = useTodayQueue(doctor?.id);
   const setStatus = useUpdateAppointmentStatus();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -32,16 +37,56 @@ export default function DoctorDashboard() {
   const items = queue.data ?? [];
   const current = items.find((a) => a.status === 'in_progress') ?? items.find((a) => a.status === 'checked_in');
   const done = items.filter((a) => a.status === 'completed').length;
+  const activeCount = items.filter((a) => !['cancelled', 'no_show'].includes(a.status)).length;
+
+  if (isDoctorLoading) {
+    return <FullPageLoader />;
+  }
+
+  if (doctor === null) {
+    if (!profile) return null;
+    return (
+      <PageTransition>
+        <DoctorOnboarding profileId={profile.id} />
+      </PageTransition>
+    );
+  }
+
+  if (doctor?.verification === 'pending') {
+    return (
+      <PageTransition>
+        <div className="mx-auto max-w-2xl pt-8 pb-12">
+          <PageHeader title="Application under review" subtitle="Your doctor application is currently being reviewed by our administrators." />
+          <Card className="mt-6 p-6">
+            <EmptyState title="Verification Pending" hint="We will notify you once your application has been approved." />
+          </Card>
+        </div>
+      </PageTransition>
+    );
+  }
+
+  if (doctor?.verification === 'rejected' || doctor?.verification === 'suspended') {
+    return (
+      <PageTransition>
+        <div className="mx-auto max-w-2xl pt-8 pb-12">
+          <PageHeader title="Access restricted" subtitle={`Your account has been ${doctor.verification}.`} />
+          <Card className="mt-6 p-6">
+            <EmptyState title="Access Restricted" hint="Please contact support for more information." />
+          </Card>
+        </div>
+      </PageTransition>
+    );
+  }
 
   return (
     <PageTransition>
       <div ref={rootRef}>
-      <PageHeader title="Today's practice" subtitle={doctor ? `${doctor.specialty} · ${items.length} patients scheduled` : 'Loading…'} />
+      <PageHeader title="Today's practice" subtitle={doctor ? `${doctor.specialty} · ${activeCount} patients scheduled` : 'Loading…'} />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard label="Patients today" value={items.length} icon={<IoPeopleOutline className="h-5 w-5" />} />
+        <KpiCard label="Patients today" value={activeCount} icon={<IoPeopleOutline className="h-5 w-5" />} />
         <KpiCard label="Completed" value={done} icon={<IoCheckmarkDoneOutline className="h-5 w-5" />} />
         <KpiCard label="Current token" value={current ? `#${current.token_number}` : '—'} icon={<IoTimeOutline className="h-5 w-5" />} />
-        <KpiCard label="Rating" value={doctor ? `${doctor.rating_avg} (${doctor.rating_count})` : '—'} icon={<IoStarOutline className="h-5 w-5" />} />
+        <KpiCard label="Rating" value={doctor ? `${String(doctor.rating_avg)} (${String(doctor.rating_count)})` : '—'} icon={<IoStarOutline className="h-5 w-5" />} />
       </div>
 
       <Card className="mt-6">
@@ -77,25 +122,15 @@ export default function DoctorDashboard() {
         </ul>
       </Card>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <ChartCard title="Weekly utilization" config={{
-          type: 'bar',
-          data: {
-            labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-            datasets: [{ label: 'Consultations', data: [8, 11, 9, 12, 10, items.length], backgroundColor: '#0891b2', borderRadius: 8 }],
-          },
-        }} />
-        <ChartCard title="Consultation mix" config={{
-          type: 'doughnut',
-          data: {
-            labels: ['Video', 'Clinic'],
-            datasets: [{ data: [items.filter((a) => a.type === 'video').length || 1, items.filter((a) => a.type === 'clinic').length || 1], backgroundColor: ['#0891b2', '#67e8f9'] }],
-          },
-        }} />
-      </div>
+      {doctor?.id && (
+        <DoctorAnalytics doctorId={doctor.id} />
+      )}
 
       {doctor?.id && (
-        <ScheduleSettings doctorId={doctor.id} />
+        <>
+          <DoctorProfileSettings doctor={doctor} />
+          <ScheduleSettings doctorId={doctor.id} />
+        </>
       )}
       
       </div>

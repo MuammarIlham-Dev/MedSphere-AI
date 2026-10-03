@@ -116,6 +116,17 @@ export function ScheduleSettings({ doctorId }: ScheduleSettingsProps) {
                         <option value={60}>60 min</option>
                       </select>
                     </div>
+                    
+                    <div className="flex items-center gap-2 bg-white dark:bg-surface-dark border border-slate-200 dark:border-white/10 rounded-lg px-3 py-1.5">
+                      <select 
+                        value={schedule?.type || 'clinic'} 
+                        onChange={(e) => handleUpdate(index, 'type', e.target.value)}
+                        className="bg-transparent outline-none text-sm font-medium dark:text-white"
+                      >
+                        <option value="clinic">Clinic</option>
+                        <option value="video">Video</option>
+                      </select>
+                    </div>
 
                     {isDirty && (
                       <Button size="sm" onClick={() => handleSave(index)} disabled={updateSchedule.isPending}>

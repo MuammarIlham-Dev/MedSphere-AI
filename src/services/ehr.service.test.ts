@@ -31,7 +31,8 @@ describe('ehr.service', () => {
       title: 'Fever check',
       diagnosis: 'Flu',
       notes: 'Rest and drink fluids',
-      prescriptionNotes: 'Paracetamol'
+      prescriptionNotes: 'Paracetamol',
+      prescriptionItems: []
     });
 
     expect(mockRpc).toHaveBeenCalledWith('record_consultation', {

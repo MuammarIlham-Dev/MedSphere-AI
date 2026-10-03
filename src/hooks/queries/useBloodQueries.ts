@@ -79,7 +79,7 @@ export function useLogDonation() {
   const qc = useQueryClient();
   const toast = useUiStore((s) => s.toast);
   return useMutation({
-    mutationFn: ({ donorId, requestId }: { donorId: string, requestId?: string }) => bloodService.logDonation(donorId, requestId),
+    mutationFn: ({ donorId, bankId, units }: { donorId: string, bankId: string, units?: number }) => bloodService.logDonation(donorId, bankId, units),
     onSuccess: () => {
       toast('success', 'Donation logged successfully');
       void qc.invalidateQueries({ queryKey: ['blood-donor-profile'] });

@@ -57,11 +57,9 @@ export default function OrganDonation() {
     register({
       blood_group: bloodGroup as BloodGroup,
       organs: selectedOrgans,
-      // For MVP we just use 'granted' via the service automatically if we pass a dummy consent_file_id
-      // In production, an actual PDF/signature upload is required.
-      consent_file_id: 'digital_signature_' + Date.now(),
+      has_consent: hasConsent,
       hla: []
-    });
+    } as any);
   };
 
   if (isLoading) return <div className="p-8 text-center text-slate-400">Loading donor profile...</div>;

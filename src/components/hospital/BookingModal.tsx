@@ -80,9 +80,10 @@ export function BookingModal({ doctor, isOpen, onClose }: BookingModalProps) {
       doctor_id: doctor.id,
       hospital_id: doctor.hospital_id || undefined,
       scheduled_at: scheduledAt.toISOString(),
+      duration_min: scheduleForDay?.slot_minutes || 15,
       type: consultType,
       reason,
-    } as any, {
+    }, {
       onSuccess: () => {
         onClose();
       }

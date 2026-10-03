@@ -202,7 +202,7 @@ function CallInterface({ otherName, appointmentId }: { otherName: string, appoin
             <h3 className="font-semibold text-slate-100 flex items-center gap-2">
               <IoChatbubblesOutline className="text-brand-500" /> Session Chat
             </h3>
-            <p className="text-xs text-slate-400 mt-1">{typing ? `${typing.name} is typing...` : 'End-to-end encrypted'}</p>
+            <p className="text-xs text-slate-400 mt-1">{typing ? `${typing.name} is typing...` : 'Session chat active'}</p>
           </div>
           
           <div ref={chatScrollRef} className="flex-1 p-4 space-y-4 overflow-y-auto bg-slate-950/50" onMouseEnter={markRead}>
@@ -246,27 +246,58 @@ export default function ConsultationRoom() {
   const profile = useAuthStore((s) => s.profile);
   
   const [callObject, setCallObject] = useState<DailyCall | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Generate a new CallObject. User will provide real URL later.
-    // Daily requires a URL to join. We put a placeholder. 
-    // In production, this URL is generated via Daily REST API securely.
-    const co = DailyIframe.createCallObject({
-      url: 'https://placeholder.daily.co/room', 
-    });
-    setCallObject(co);
-    
-    // Auto-join immediately
-    co.join({ url: 'https://placeholder.daily.co/room' }).catch((e: any) => {
-      console.warn("Daily join error (expected if placeholder url)", e);
-    });
+    let co: DailyCall | null = null;
+
+    async function initDaily() {
+      try {
+        if (!appointmentId) throw new Error("No appointment ID");
+        
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error("Not authenticated");
+
+        // Request real daily.co room URL from Edge Function
+        const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/daily-room`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({ appointmentId })
+        });
+        
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || "Failed to join room");
+        }
+        
+        const { url } = await res.json();
+
+        co = DailyIframe.createCallObject({ url });
+        setCallObject(co);
+        
+        // Auto-join immediately
+        await co.join({ url });
+      } catch (err: any) {
+        console.error("Daily join error", err);
+        setError(err.message || "Failed to initialize call");
+      }
+    }
+
+    initDaily();
 
     return () => {
-      co.leave().then(() => co.destroy());
+      if (co) {
+        const safeCo = co;
+        safeCo.leave().then(() => safeCo.destroy());
+      }
     };
-  }, []);
+  }, [appointmentId]);
 
-  if (!callObject) return <div>Initializing...</div>;
+  if (error) return <div className="p-8 text-center text-red-500">{error}</div>;
+  if (!callObject) return <div className="p-8 text-center text-slate-400">Initializing secure room...</div>;
 
   const isDoctor = profile?.role === 'doctor';
   const otherName = isDoctor ? 'Patient' : 'Dr. Smith';

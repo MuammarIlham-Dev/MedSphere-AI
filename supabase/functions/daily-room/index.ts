@@ -1,4 +1,7 @@
+// @ts-nocheck
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+
+import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,7 +14,29 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Missing Authorization header" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401
+      });
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+    
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401
+      });
+    }
+
     const { appointmentId } = await req.json();
+    
     const apiKey = Deno.env.get("DAILY_API_KEY");
     
     if (!apiKey) {
@@ -26,6 +51,25 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: "Missing appointmentId" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
       );
+    }
+
+    // Verify appointment ownership
+    const { data: appt, error: apptErr } = await supabase
+      .from('appointments')
+      .select('patient_id, doctors(profile_id)')
+      .eq('id', appointmentId)
+      .single();
+
+    if (apptErr || !appt) {
+      return new Response(JSON.stringify({ error: "Appointment not found" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404
+      });
+    }
+
+    if (appt.patient_id !== user.id && appt.doctors?.profile_id !== user.id) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 403
+      });
     }
 
     // Try to create a room with the name of the appointment ID

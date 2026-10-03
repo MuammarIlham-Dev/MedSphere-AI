@@ -5,13 +5,14 @@ create or replace function public.trg_notify_blood_request()
 returns trigger as $$
 begin
   if TG_OP = 'INSERT' then
-    -- Notify all active donors with matching blood type (simplified for MVP)
     insert into public.notifications (user_id, type, title, body, priority, data)
-    select d.profile_id, 'blood_request', 'Urgent Blood Request',
-           'A patient needs ' || new.blood_group || ' blood urgently.', 'high',
+    select d.profile_id, 'blood_request', 
+           initcap(new.urgency::text) || ' Blood Request',
+           'A patient needs ' || new.blood_group || ' blood. Urgency: ' || new.urgency || '.', 
+           case when new.urgency in ('high', 'critical') then 'high' else 'normal' end,
            jsonb_build_object('request_id', new.id)
     from public.blood_donors d
-    where d.blood_group = new.blood_group and d.status = 'active';
+    where d.blood_group = new.blood_group and d.is_eligible = true;
   end if;
   return new;
 end;

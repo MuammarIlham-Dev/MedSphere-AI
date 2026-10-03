@@ -85,8 +85,8 @@ export function DoctorCard({ doctor, style }: DoctorCardProps) {
   const deptStyle = getDepartmentStyle(primarySpecialty);
   const DeptIcon = deptStyle.icon;
   
-  // Create a realistic description based on actual db data
-  const description = doctor.bio || `${doctor.full_name} is a renowned ${specializations[0] || 'Medical Professional'} with over ${doctor.experience_years || 0} years of experience in the field of ${doctor.specialty}. Dedicated to providing comprehensive and compassionate care to patients.`;
+  // Real description or fallback
+  const description = doctor.bio || 'No biography provided by this professional.';
 
   // Determine designation from qualifications or fallback
   const designation = credentials.some(q => q.toLowerCase().includes('prof')) ? 'Professor' : 'Doctor';
@@ -177,7 +177,7 @@ export function DoctorCard({ doctor, style }: DoctorCardProps) {
           <div className="flex items-center gap-1.5">
             <CalendarDays className="w-4 h-4 text-slate-600 stroke-[1.5] shrink-0 -mt-3" />
             <div className="flex flex-col min-w-0">
-              <span className="text-[10px] font-bold text-slate-600 truncate">{doctor.experience_years || '10'}+ years</span>
+              <span className="text-[10px] font-bold text-slate-600 truncate">{doctor.experience_years} years</span>
               <span className="text-[10px] text-slate-600 truncate">experience</span>
             </div>
           </div>
@@ -185,8 +185,8 @@ export function DoctorCard({ doctor, style }: DoctorCardProps) {
           <div className="flex items-center gap-1.5">
             <MapPin className="w-4 h-4 text-slate-600 stroke-[1.5] shrink-0 -mt-3" />
             <div className="flex flex-col min-w-0">
-              <span className="text-[10px] font-bold text-slate-600 truncate">{doctor.city || 'Rajshahi'}</span>
-              <span className="text-[10px] text-slate-600 truncate">{doctor.hospital_name || 'Popular Diagnostic'}</span>
+              <span className="text-[10px] font-bold text-slate-600 truncate">{doctor.city || 'Not provided'}</span>
+              <span className="text-[10px] text-slate-600 truncate">{doctor.hospital_name || 'Independent Practitioner'}</span>
             </div>
           </div>
           
@@ -262,13 +262,15 @@ export function DoctorCard({ doctor, style }: DoctorCardProps) {
             <CalendarDays className="w-[15px] h-[15px]" />
             Book Appointment
           </button>
-          <a
-            href={`tel:${doctor.phone || ''}`}
-            className="shrink-0 h-8 px-4 flex items-center justify-center gap-2 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 text-[13px] font-bold transition-colors bg-white shadow-sm"
-          >
-            <MessageCircle className="w-[15px] h-[15px] text-slate-700" />
-            Message
-          </a>
+          {doctor.phone && (
+            <a
+              href={`tel:${doctor.phone}`}
+              className="shrink-0 h-8 px-4 flex items-center justify-center gap-2 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 text-[13px] font-bold transition-colors bg-white shadow-sm"
+            >
+              <MessageCircle className="w-[15px] h-[15px] text-slate-700" />
+              Call
+            </a>
+          )}
         </div>
       </div>
       

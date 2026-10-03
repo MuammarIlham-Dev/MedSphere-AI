@@ -41,24 +41,25 @@ export const bloodService = {
     return data;
   },
 
-  registerAsDonor: async (input: { blood_group: BloodGroup; is_available: boolean; privacy_settings: any }) => {
+  registerAsDonor: async (input: { blood_group: BloodGroup; is_eligible: boolean }) => {
     const uid = (await supabase.auth.getUser()).data.user?.id;
     if (!uid) throw new Error('Not authenticated');
     return unwrap(supabase.from('blood_donors').upsert({
       profile_id: uid,
       ...input,
-      updated_at: new Date().toISOString()
     }).select().single());
   },
 
-  logDonation: async (donorId: string, requestId?: string) => {
-    const now = new Date().toISOString();
+  logDonation: async (donorId: string, bankId: string, units: number = 1) => {
+    // Only authorized blood bank operators should call this!
+    const now = new Date().toISOString().split('T')[0];
     await unwrap(supabase.from('blood_donations').insert({
       donor_id: donorId,
-      request_id: requestId,
-      donation_date: now
+      bank_id: bankId,
+      donated_at: now,
+      units: units
     }));
-    return unwrap(supabase.from('blood_donors').update({ last_donation_date: now }).eq('id', donorId).select().single());
+    return unwrap(supabase.from('blood_donors').update({ last_donation_at: now }).eq('id', donorId).select().single());
   },
 
   nearbyDonors: (bloodGroup: string, lat: number, lng: number) => {
@@ -67,7 +68,7 @@ export const bloodService = {
     return unwrap(supabase.from('blood_donors')
       .select('*, profiles(full_name, city, lat, lng)')
       .eq('blood_group', bloodGroup)
-      .eq('is_available', true)
+      .eq('is_eligible', true)
       .limit(50));
   }
 };

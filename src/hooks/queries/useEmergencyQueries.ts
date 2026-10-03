@@ -32,6 +32,26 @@ export function useEmergency(id: string | undefined) {
   return query;
 }
 
+export function useActiveEmergency() {
+  const qc = useQueryClient();
+  const query = useQuery({
+    queryKey: ['emergency', 'active'],
+    queryFn: () => emergencyService.myActive(),
+  });
+  
+  useEffect(() => {
+    if (!query.data?.id) return;
+    const id = query.data.id;
+    const ch = supabase.channel(`em:active:${id}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'emergencies', filter: `id=eq.${id}` },
+        () => qc.invalidateQueries({ queryKey: ['emergency', 'active'] }))
+      .subscribe();
+    return () => { void supabase.removeChannel(ch); };
+  }, [query.data?.id, qc]);
+  
+  return query;
+}
+
 /** Live ambulance GPS over Ably. */
 export function useAmbulanceTrack(ambulanceId: string | undefined) {
   const [loc, setLoc] = useState<{ lat: number; lng: number; at: string } | null>(null);

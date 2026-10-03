@@ -4,7 +4,7 @@ import { PageTransition } from '@/components/transitions/PageTransition';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { IoMedkitOutline, IoNavigateOutline, IoCheckmarkCircle } from 'react-icons/io5';
-import { useSOS, useEmergency } from '@/hooks/queries/useEmergencyQueries';
+import { useSOS, useActiveEmergency } from '@/hooks/queries/useEmergencyQueries';
 import { useAuthStore } from '@/stores/authStore';
 import { useUiStore } from '@/stores/uiStore';
 
@@ -14,15 +14,15 @@ export default function EmergencySOS() {
   const profile = useAuthStore((s) => s.profile);
   const toast = useUiStore((s) => s.toast);
   const sos = useSOS();
-  const [emergencyId, setEmergencyId] = useState<string>();
-  const { data: emergency } = useEmergency(emergencyId);
+  const { data: emergency } = useActiveEmergency();
 
   const trigger = () => {
+    if (emergency) return toast('info', 'You already have an active emergency');
     if (!('geolocation' in navigator)) return toast('error', 'Geolocation unavailable on this device');
     navigator.geolocation.getCurrentPosition(
       (pos) => sos.mutate(
         { lat: pos.coords.latitude, lng: pos.coords.longitude, city: profile?.city ?? undefined },
-        { onSuccess: (e) => { setEmergencyId(e.id); toast('success', 'SOS sent — help is being dispatched'); } },
+        { onSuccess: () => { toast('success', 'SOS sent — help is being dispatched'); } },
       ),
       () => toast('error', 'Location permission required for SOS'),
       { enableHighAccuracy: true, timeout: 10_000 },
@@ -36,7 +36,7 @@ export default function EmergencySOS() {
       <PageHeader title="Emergency SOS" subtitle="One tap shares your live location with the nearest response network" />
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="flex flex-col items-center justify-center gap-6 p-10 text-center">
-          <button onClick={trigger} disabled={sos.isPending}
+          <button onClick={trigger} disabled={sos.isPending || !!emergency}
             aria-label="Trigger emergency SOS"
             className="flex h-44 w-44 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-red-700 text-white shadow-2xl transition-transform hover:scale-105 active:scale-95 animate-sos-ring disabled:opacity-60">
             <span className="flex flex-col items-center gap-1">

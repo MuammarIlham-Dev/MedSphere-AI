@@ -22,7 +22,7 @@ export function useNotifications() {
 
   useEffect(() => {
     if (!profile) return;
-    const db = supabase.channel(`notify-db-${profile.id}-${Math.random()}`)
+    const db = supabase.channel(`notify-db-${profile.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile.id}` },
         () => qc.invalidateQueries({ queryKey: ['notifications'] }))
       .subscribe();

@@ -13,7 +13,7 @@ export const organService = {
   registerDonor: async (input: RegisterDonorInput & { id?: string }): Promise<OrganDonor> => {
     const uid = (await supabase.auth.getUser()).data.user?.id;
     return unwrap(supabase.from('organ_donors')
-      .upsert({ ...input, profile_id: uid, consent: input.consent_file_id ? 'granted' : 'pending' })
+      .upsert({ ...input, profile_id: uid, consent: (input as any).has_consent || input.consent_file_id ? 'granted' : 'pending' })
       .select().single());
   },
 

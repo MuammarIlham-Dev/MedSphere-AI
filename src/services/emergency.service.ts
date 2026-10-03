@@ -23,6 +23,20 @@ export const emergencyService = {
   publishAmbulanceLocation: (ambulanceId: string, lat: number, lng: number) =>
     publish(`track:ambulance:${ambulanceId}`, 'track:loc', { ambulanceId, lat, lng, at: new Date().toISOString() }),
 
+  myActive: async () => {
+    const uid = (await supabase.auth.getUser()).data.user?.id;
+    if (!uid) throw new ApiError('AUTH', 'Not signed in');
+    return unwrap<Emergency | null>(
+      supabase.from('emergencies')
+        .select('*')
+        .eq('reporter_id', uid)
+        .in('status', ['active', 'dispatched', 'on_scene', 'transporting', 'arrived'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    );
+  },
+
   listActive: () => unwrap<Emergency[]>(supabase.from('emergencies').select('*').in('status', ['active', 'dispatched', 'on_scene', 'transporting']).order('created_at', { ascending: false })),
 
   dispatchAmbulance: async (id: string, ambulanceId: string) => {

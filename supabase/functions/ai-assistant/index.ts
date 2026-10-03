@@ -1,4 +1,7 @@
+// @ts-nocheck
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+
+import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,6 +14,27 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Missing Authorization header" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401
+      });
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+    
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401
+      });
+    }
+
     const { task, payload } = await req.json();
     const apiKey = Deno.env.get("AI_API_KEY");
     
@@ -27,15 +51,23 @@ Deno.serve(async (req) => {
     if (task === "symptom_check") {
       systemInstruction = `You are an AI medical assistant for MedSphere AI. Your role is to provide informational symptom guidance based on user input. 
 CRITICAL RULES:
-1. You MUST state that you are an AI and your guidance is NOT a medical diagnosis.
+1. You MUST explicitly state that you are an AI and your guidance is NOT a medical diagnosis.
 2. Provide a structured response with possible causes and recommended next steps.
 3. Keep it empathetic but clinical and objective.
-4. Output in JSON format with fields: "guidance" (markdown string), "confidence" (High, Medium, or Low), and "disclaimer" (boolean true).`;
+4. ESCALATE TO EMERGENCY SERVICES IMMEDIATELY if symptoms indicate life-threatening conditions (e.g., severe chest pain, difficulty breathing, stroke symptoms).
+5. DO NOT fabricate citations, false diagnoses, or unsubstantiated claims. Base responses on established medical triage protocols.
+6. Output in JSON format with fields: "guidance" (markdown string), "confidence" (High, Medium, or Low), and "disclaimer" (boolean true).`;
+      
+      const symptoms = String(payload.symptoms || '').substring(0, 500);
+      const duration = String(payload.duration || '').substring(0, 100);
+      const severity = String(payload.severity || '').substring(0, 100);
+      const history = String(payload.history || 'None').substring(0, 500);
+
       userPrompt = `User is experiencing the following:
-Symptoms: ${payload.symptoms}
-Duration: ${payload.duration}
-Severity: ${payload.severity}
-Additional context: ${payload.history || 'None'}
+Symptoms: ${symptoms}
+Duration: ${duration}
+Severity: ${severity}
+Additional context: ${history}
 Please provide guidance as JSON.`;
     } else if (task === "summarize_timeline") {
       systemInstruction = `You are a medical record summarizer. You take a list of chronological medical events and summarize them into a concise, easy-to-read chronological overview for a doctor.

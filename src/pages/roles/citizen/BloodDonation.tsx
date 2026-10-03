@@ -10,22 +10,21 @@ export default function BloodDonation() {
   const user = useAuthStore(s => s.profile);
   const { data: profile, isLoading } = useDonorProfile();
   const { mutate: register, isPending: isRegistering } = useRegisterDonor();
-  const { mutate: logDonation, isPending: isLogging } = useLogDonation();
-  const { data: requests, isLoading: isRequestsLoading } = useBloodRequests('urgent');
+  const { data: requests, isLoading: isRequestsLoading } = useBloodRequests();
 
   const [bloodGroup, setBloodGroup] = useState<BloodGroup | ''>(profile?.blood_group || '');
-  const [isAvailable, setIsAvailable] = useState(profile?.is_available ?? true);
+  const [isEligibleOverride, setIsEligibleOverride] = useState(profile?.is_eligible ?? true);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   if (isLoading) return <div className="p-8 text-center text-slate-400">Loading donor profile...</div>;
 
   const handleRegister = () => {
     if (!bloodGroup) return;
-    register({ blood_group: bloodGroup as BloodGroup, is_available: isAvailable, privacy_settings: { showPhone: false } });
+    register({ blood_group: bloodGroup as BloodGroup, is_eligible: isEligibleOverride });
   };
 
   // Timer logic
-  const lastDonation = profile?.last_donation_date ? new Date(profile.last_donation_date) : null;
+  const lastDonation = profile?.last_donation_at ? new Date(profile.last_donation_at) : null;
   
   let isEligible = true;
   let daysUntilEligible = 0;
@@ -93,22 +92,16 @@ export default function BloodDonation() {
               <input 
                 type="checkbox" 
                 id="available" 
-                checked={isAvailable}
-                onChange={(e) => setIsAvailable(e.target.checked)}
+                checked={isEligibleOverride}
+                onChange={(e) => setIsEligibleOverride(e.target.checked)}
                 className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-rose-500 focus:ring-rose-500" 
               />
-              <label htmlFor="available" className="text-slate-300">I am available for emergency donations</label>
+              <label htmlFor="available" className="text-slate-300">I am eligible to donate</label>
             </div>
 
             <Button onClick={handleRegister} loading={isRegistering} className="w-full" disabled={!bloodGroup}>
               {profile ? 'Update Donor Profile' : 'Register as Donor'}
             </Button>
-            
-            {profile && isEligible && (
-              <Button variant="secondary" onClick={() => logDonation({ donorId: profile.id })} loading={isLogging} className="w-full">
-                I Just Donated Blood
-              </Button>
-            )}
           </div>
         </div>
 

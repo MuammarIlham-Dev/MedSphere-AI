@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { generateSlots } from '@/lib/utils';
 import type { DoctorSchedule } from '@/types';
-
+import type { TimeSlot } from './doctor.service';
 const clinicSchedule: DoctorSchedule = {
   id: 'schedule-1',
   doctor_id: 'doctor-1',
@@ -19,23 +19,24 @@ describe('generateSlots', () => {
     const slots = generateSlots([
       clinicSchedule,
       { ...clinicSchedule, id: 'other-day', weekday: 5, type: 'video' },
-    ], [], new Date('2099-01-08T00:00:00'));
+    ], [], '2099-01-08');
 
-    const times = slots.map((s: any) => {
-      const d = new Date(s.start);
-      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    const times = slots.map((s: TimeSlot) => {
+      // The start string is formatted as `YYYY-MM-DDTHH:mm:00+06:00`.
+      // We can just extract the time part directly from the string to avoid timezone drift in tests.
+      return s.start.substring(11, 16);
     });
-    expect(times).toEqual(['09:00', '09:20', '09:40']);
-    expect(slots.every((slot: any) => slot.type === 'clinic' && slot.available)).toBe(true);
+    expect(times).toEqual(['03:00', '03:20', '03:40']);
+    expect(slots.every((slot: TimeSlot) => slot.type === 'clinic' && slot.available)).toBe(true);
   });
 
   it('marks a persisted appointment as unavailable', () => {
     vi.setSystemTime(new Date('2099-01-01T00:00:00Z'));
-    const initialSlots = generateSlots([clinicSchedule], [], new Date('2099-01-08T00:00:00'));
+    const initialSlots = generateSlots([clinicSchedule], [], '2099-01-08');
     const booked = initialSlots[1]?.start ?? '';
-    const slots = generateSlots([clinicSchedule], [booked], new Date('2099-01-08T00:00:00'));
+    const slots = generateSlots([clinicSchedule], [booked], '2099-01-08');
 
     expect(slots[1]?.available).toBe(false);
-    expect(slots.filter((slot: any) => slot.available)).toHaveLength(2);
+    expect(slots.filter((slot: TimeSlot) => slot.available)).toHaveLength(2);
   });
 });

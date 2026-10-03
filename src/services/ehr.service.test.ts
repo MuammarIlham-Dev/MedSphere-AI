@@ -16,15 +16,16 @@ describe('ehr.service', () => {
 
   it('labReports maps lab tests correctly if empty', async () => {
     const mockSelect = vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue({ data: [], error: null }) }) });
-    vi.mocked(supabase.from).mockReturnValue({ select: mockSelect } as any);
+    (supabase.from as unknown as ReturnType<typeof vi.fn>).mockReturnValue({ select: mockSelect });
 
     const res = await ehrService.labReports('patient-1');
     expect(res).toEqual([]);
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(supabase.from).toHaveBeenCalledWith('lab_orders');
   });
 
   it('recordConsultation calls rpc correctly', async () => {
-    const mockRpc = vi.mocked(supabase.rpc).mockResolvedValueOnce({ data: 'record-123', error: null } as any);
+    const mockRpc = (supabase.rpc as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ data: 'record-123', error: null });
 
     await ehrService.recordConsultation({
       appointmentId: 'app-1',
@@ -40,7 +41,8 @@ describe('ehr.service', () => {
       p_title: 'Fever check',
       p_diagnosis: 'Flu',
       p_notes: 'Rest and drink fluids',
-      p_prescription_notes: 'Paracetamol'
+      p_prescription_notes: 'Paracetamol',
+      p_prescription_items: null,
     });
   });
 });

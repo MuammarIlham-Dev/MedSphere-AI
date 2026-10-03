@@ -46,9 +46,10 @@ export function DoctorAnalytics({ doctorId }: { doctorId: string }) {
         totalRevenue += (row.doctors?.consultation_fee || 0);
         
         // @ts-ignore
-        if (row.appointment_feedback && row.appointment_feedback.length > 0) {
+        // @ts-ignore
+        if (row.appointment_feedback && row.appointment_feedback.rating) {
           // @ts-ignore
-          ratingSum += row.appointment_feedback[0].rating;
+          ratingSum += row.appointment_feedback.rating;
           ratingCount++;
         }
       }

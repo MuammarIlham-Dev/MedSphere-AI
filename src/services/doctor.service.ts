@@ -8,7 +8,7 @@ import type { DoctorCard, DoctorSearchFilters, DoctorSchedule } from '@/types';
 
 export const doctorService = {
   async getMyDoctor(profileId: string) {
-    return unwrap<{ id: string; verification: string; specialty: string; rating_avg: number; rating_count: number; [key: string]: any } | null>(
+    return unwrap<{ id: string; verification: string; specialty: string; rating_avg: number; rating_count: number; [key: string]: unknown } | null>(
       supabase.from('doctors').select('*').eq('profile_id', profileId).maybeSingle()
     );
   },
@@ -41,7 +41,20 @@ export const doctorService = {
     if (filters.city) q = q.eq('hospitals.city', filters.city);
     if (filters.type === 'video') q = q.eq('video_enabled', true);
     if (filters.type === 'clinic') q = q.eq('clinic_enabled', true);
-    const rows = await unwrap<any[]>(q);
+    interface SearchRow {
+      id: string;
+      specialty: string;
+      experience_years: number;
+      consultation_fee: number;
+      rating_avg: number;
+      rating_count: number;
+      video_enabled: boolean;
+      clinic_enabled: boolean;
+      languages: string[];
+      profiles: { full_name: string; avatar_url: string; gender: string };
+      hospitals: { name: string; city: string } | null;
+    }
+    const rows = await unwrap<SearchRow[]>(q);
     return rows.map((r) => ({
       ...r,
       full_name: r.profiles.full_name,
@@ -51,21 +64,20 @@ export const doctorService = {
       hospital_city: r.hospitals?.city ?? null,
       profiles: undefined,
       hospitals: undefined,
-    }));
+    })) as unknown as DoctorCard[];
   },
 
   async slots(doctorId: string, dateISO: string): Promise<TimeSlot[]> {
-    const date = new Date(dateISO);
     const schedules = await unwrap<DoctorSchedule[]>(
       supabase.from('doctor_schedules').select('*').eq('doctor_id', doctorId).eq('is_active', true),
     );
-    const dayStart = new Date(date); dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(date); dayEnd.setHours(23, 59, 59, 999);
+    const dayStartISO = `${dateISO}T00:00:00+06:00`;
+    const dayEndISO = `${dateISO}T23:59:59+06:00`;
     const booked = await unwrap<Array<{ scheduled_at: string }>>(
       supabase.from('appointments').select('scheduled_at').eq('doctor_id', doctorId)
-        .gte('scheduled_at', dayStart.toISOString()).lte('scheduled_at', dayEnd.toISOString())
+        .gte('scheduled_at', dayStartISO).lte('scheduled_at', dayEndISO)
         .not('status', 'in', '("cancelled","no_show")'),
     );
-    return generateSlots(schedules, booked.map((b) => b.scheduled_at), date);
+    return generateSlots(schedules, booked.map((b) => b.scheduled_at), dateISO);
   },
 };

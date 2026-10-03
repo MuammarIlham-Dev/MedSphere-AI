@@ -26,6 +26,13 @@ export interface RecordConsultationInput {
   }[];
 }
 
+export interface PrescriptionWithItems {
+  id: string;
+  created_at: string;
+  notes: string | null;
+  prescription_items: any[];
+}
+
 export const ehrService = {
   records: (patientId: string): Promise<MedicalRecord[]> =>
     unwrap<MedicalRecord[]>(supabase.from('medical_records')
@@ -34,10 +41,10 @@ export const ehrService = {
       .order('created_at', { ascending: false })
       .limit(100)),
 
-  async prescriptions(patientId: string) {
-    const rows = await unwrap<any[]>(
+  async prescriptions(patientId: string): Promise<PrescriptionWithItems[]> {
+    const rows = await unwrap<PrescriptionWithItems[]>(
       supabase.from('prescriptions')
-        .select('*, prescription_items(*)')
+        .select('*, prescription_items(*, medicines(name, generic_name))')
         .eq('patient_id', patientId)
         .order('created_at', { ascending: false })
     );
@@ -75,44 +82,14 @@ export const ehrService = {
     ),
 
   recordConsultation: async (input: RecordConsultationInput): Promise<string> => {
-    // 1. Record the consultation (creates medical_records, and optionally a prescription if notes exist)
-    // We force a prescription creation if there are items, even if notes are empty
-    const prescriptionText = input.prescriptionNotes || (input.prescriptionItems.length > 0 ? 'Structured prescription' : '');
-    
-    const recordId = await unwrap(supabase.rpc('record_consultation', {
+    const recordId = await unwrap<string>(supabase.rpc('record_consultation', {
       p_appointment_id: input.appointmentId,
       p_title: input.title,
       p_diagnosis: input.diagnosis,
       p_notes: input.notes,
-      p_prescription_notes: prescriptionText || null,
+      p_prescription_notes: input.prescriptionNotes || null,
+      p_prescription_items: input.prescriptionItems.length > 0 ? input.prescriptionItems : null,
     }));
-
-    // 2. If there are items, attach them to the created prescription
-    if (input.prescriptionItems && input.prescriptionItems.length > 0) {
-      // Find the prescription ID that was just created
-      const prescs = await unwrap<{ id: string }[]>(
-        supabase.from('prescriptions')
-          .select('id')
-          .eq('appointment_id', input.appointmentId)
-          .order('created_at', { ascending: false })
-          .limit(1)
-      );
-
-      if (prescs && prescs.length > 0 && prescs[0]) {
-        const prescId = prescs[0].id;
-        const itemsToInsert = input.prescriptionItems.map(item => ({
-          prescription_id: prescId,
-          medicine_id: item.medicine_id,
-          dosage: item.dosage,
-          frequency: item.frequency,
-          duration_days: item.duration_days,
-          instructions: item.instructions || null,
-        }));
-        
-        await unwrap(supabase.from('prescription_items').insert(itemsToInsert));
-      }
-    }
-
     return recordId;
   }
 };

@@ -36,7 +36,8 @@ describe('organ.service', () => {
       profile_id: 'u1',
       organs: ['heart', 'kidneys'],
       emergency_contact_name: 'Jane Doe',
-      emergency_contact_phone: '123456789'
+      emergency_contact_phone: '123456789',
+      has_consent: true
     }, { onConflict: 'profile_id' });
 
     expect(supabase.rpc).toHaveBeenCalledWith('update_organ_consent', {

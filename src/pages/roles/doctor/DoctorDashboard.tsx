@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/restrict-template-expressions, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-confusing-void-expression, @typescript-eslint/no-non-null-assertion */
+/* eslint-disable @typescript-eslint/restrict-template-expressions, @typescript-eslint/no-confusing-void-expression, @typescript-eslint/no-non-null-assertion */
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Card, CardHeader } from '@/components/ui/Card';
@@ -20,6 +20,8 @@ import { ScheduleSettings } from '@/components/doctor/ScheduleSettings';
 import { DoctorProfileSettings } from '@/components/doctor/DoctorProfileSettings';
 import { DoctorAnalytics } from '@/components/doctor/DoctorAnalytics';
 import { DoctorOnboarding } from './DoctorOnboarding';
+import { PatientEhrModal } from '@/components/ehr/PatientEhrModal';
+import { useState } from 'react';
 
 const NEXT: Partial<Record<AppointmentStatus, AppointmentStatus>> = {
   booked: 'confirmed', confirmed: 'checked_in', checked_in: 'in_progress', in_progress: 'completed',
@@ -33,6 +35,8 @@ export default function DoctorDashboard() {
   const setStatus = useUpdateAppointmentStatus();
   const rootRef = useRef<HTMLDivElement>(null);
   useReveal(rootRef);
+
+  const [ehrPatient, setEhrPatient] = useState<{ patientId: string; patientName: string; appointmentId: string } | null>(null);
 
   const items = queue.data ?? [];
   const current = items.find((a) => a.status === 'in_progress') ?? items.find((a) => a.status === 'checked_in');
@@ -116,6 +120,9 @@ export default function DoctorDashboard() {
                 {a.type === 'video' && a.status !== 'completed' && (
                   <Link to={`/app/consult/${a.id}`}><Button size="sm" variant="secondary">Join video</Button></Link>
                 )}
+                <Button size="sm" variant="secondary" onClick={() => setEhrPatient({ patientId: a.patient_id, patientName: a.patient_name || 'Unknown', appointmentId: a.id })}>
+                  View EHR
+                </Button>
               </div>
             </li>
           ))}
@@ -133,6 +140,15 @@ export default function DoctorDashboard() {
         </>
       )}
       
+      {ehrPatient && (
+        <PatientEhrModal
+          open={true}
+          onClose={() => setEhrPatient(null)}
+          patientId={ehrPatient.patientId}
+          patientName={ehrPatient.patientName}
+          appointmentId={ehrPatient.appointmentId}
+        />
+      )}
       </div>
     </PageTransition>
   );

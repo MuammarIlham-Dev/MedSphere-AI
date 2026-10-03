@@ -1,6 +1,7 @@
 -- Add unique constraint for schedules
-ALTER TABLE public.doctor_schedules 
-  ADD CONSTRAINT doctor_schedules_doctor_id_weekday_key UNIQUE (doctor_id, weekday);
+ALTER TABLE public.doctor_schedules DROP CONSTRAINT IF EXISTS doctor_schedules_doctor_id_weekday_key;
+ALTER TABLE public.doctor_schedules DROP CONSTRAINT IF EXISTS doctor_schedules_doctor_id_weekday_type_key;
+ALTER TABLE public.doctor_schedules ADD CONSTRAINT doctor_schedules_doctor_id_weekday_type_key UNIQUE (doctor_id, weekday, type);
 
 -- Add amount_charged to appointments for truthful analytics
 ALTER TABLE public.appointments 
@@ -20,7 +21,7 @@ BEGIN
     NEW.hospital_id IS DISTINCT FROM OLD.hospital_id OR
     NEW.experience_years IS DISTINCT FROM OLD.experience_years
   ) THEN
-    NEW.verification_status = 'pending';
+    NEW.verification = 'pending';
   END IF;
   
   -- Prevent manual updates to ratings unless by system
@@ -35,6 +36,7 @@ END;
 $$;
 
 -- Redefine book_appointment to capture amount_charged from doctor's current consultation_fee
+-- and preserve ALL existing security + schedule + overlap validations from 0007.
 CREATE OR REPLACE FUNCTION public.book_appointment(
   p_doctor_id uuid,
   p_hospital_id uuid,
@@ -49,23 +51,48 @@ DECLARE
   next_token int;
   requested_day date := (p_scheduled_at at time zone 'utc')::date;
   requested_time time := (p_scheduled_at at time zone 'utc')::time;
+  requested_dow int := extract(dow from p_scheduled_at at time zone 'utc');
   doc_fee numeric(10,2);
 BEGIN
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'authentication required'; END IF;
+  IF p_scheduled_at <= now() THEN RAISE EXCEPTION 'appointment must be in the future'; END IF;
+  IF p_duration_min NOT BETWEEN 5 AND 120 THEN RAISE EXCEPTION 'invalid duration'; END IF;
+
   SELECT consultation_fee INTO doc_fee FROM public.doctors WHERE id = p_doctor_id;
 
-  SELECT COALESCE(MAX(token_number), 0) + 1
-  INTO next_token
-  FROM public.appointments
-  WHERE doctor_id = p_doctor_id
-    AND day = requested_day;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.doctors d
+    WHERE d.id = p_doctor_id AND d.verification = 'verified'
+      AND (p_hospital_id IS NULL OR d.hospital_id = p_hospital_id)
+      AND ((p_type = 'video' AND d.video_enabled) OR (p_type = 'clinic' AND d.clinic_enabled))
+  ) THEN RAISE EXCEPTION 'doctor is unavailable for this consultation'; END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.doctor_schedules s
+    WHERE s.doctor_id = p_doctor_id AND s.is_active AND s.type = p_type
+      AND s.weekday = requested_dow
+      AND requested_time >= s.start_time
+      AND requested_time + make_interval(mins => p_duration_min) <= s.end_time
+      AND mod(extract(epoch from (requested_time - s.start_time))::int / 60, s.slot_minutes) = 0
+  ) THEN RAISE EXCEPTION 'requested time is outside the doctor schedule'; END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtextextended(p_doctor_id::text || requested_day::text, 0));
+
+  IF EXISTS (
+    SELECT 1 FROM public.appointments a
+    WHERE a.doctor_id = p_doctor_id
+      AND a.status NOT IN ('cancelled', 'no_show')
+      AND tstzrange(a.scheduled_at, a.scheduled_at + make_interval(mins => a.duration_min), '[)')
+          && tstzrange(p_scheduled_at, p_scheduled_at + make_interval(mins => p_duration_min), '[)')
+  ) THEN RAISE EXCEPTION 'this appointment slot is no longer available'; END IF;
+
+  SELECT COALESCE(MAX(token_number), 0) + 1 INTO next_token
+  FROM public.appointments WHERE doctor_id = p_doctor_id AND day = requested_day;
 
   INSERT INTO public.appointments (
-    patient_id, doctor_id, hospital_id, scheduled_at, duration_min,
-    type, token_number, day, amount_charged, reason
+    patient_id, doctor_id, hospital_id, scheduled_at, duration_min, type, status, token_number, reason, amount_charged
   ) VALUES (
-    (SELECT id FROM public.profiles WHERE id = auth.uid()),
-    p_doctor_id, p_hospital_id, p_scheduled_at, p_duration_min,
-    p_type, next_token, requested_day, doc_fee, p_reason
+    (SELECT id FROM public.profiles WHERE id = auth.uid()), p_doctor_id, p_hospital_id, p_scheduled_at, p_duration_min, p_type, 'booked', next_token, nullif(trim(p_reason), ''), doc_fee
   ) RETURNING * INTO result;
 
   RETURN result;
@@ -105,9 +132,9 @@ BEGIN
 
   -- 2. Create medical record
   INSERT INTO public.medical_records (
-    patient_id, doctor_id, title, diagnosis, notes
+    patient_id, doctor_id, appointment_id, title, diagnosis, notes
   ) VALUES (
-    v_patient_id, v_doctor_id, p_title, p_diagnosis, p_notes
+    v_patient_id, v_doctor_id, p_appointment_id, p_title, p_diagnosis, p_notes
   ) RETURNING id INTO v_record_id;
 
   -- 3. Create prescription and items if provided
@@ -153,6 +180,3 @@ CREATE POLICY prescriptions_read ON public.prescriptions FOR SELECT USING (
   )
   OR public.current_role() = 'pharmacy'
 );
-
--- Note: prescription_items_read policy uses `EXISTS (SELECT 1 FROM public.prescriptions ...)`
--- so it implicitly respects the new prescriptions_read policy above.

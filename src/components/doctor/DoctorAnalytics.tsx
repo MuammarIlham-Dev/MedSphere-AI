@@ -94,7 +94,7 @@ export function DoctorAnalytics({ doctorId }: { doctorId: string }) {
         type: 'doughnut',
         data: {
           labels: ['Video', 'Clinic'],
-          datasets: [{ data: [videoCount || 0.1, clinicCount || 0.1], backgroundColor: ['#0891b2', '#67e8f9'] }],
+          datasets: [{ data: [videoCount, clinicCount], backgroundColor: ['#0891b2', '#67e8f9'] }],
         },
       }} />
 

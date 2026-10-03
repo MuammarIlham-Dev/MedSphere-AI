@@ -53,6 +53,6 @@ export const appointmentService = {
   },
 
   setSchedule: async (schedule: any) => {
-    return unwrap(supabase.from('doctor_schedules').upsert(schedule, { onConflict: 'doctor_id,weekday' }).select().single());
+    return unwrap(supabase.from('doctor_schedules').upsert(schedule, { onConflict: 'doctor_id,weekday,type' }).select().single());
   }
 };

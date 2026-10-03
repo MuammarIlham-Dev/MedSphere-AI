@@ -10,18 +10,30 @@ export const organService = {
     return data;
   },
 
-  registerDonor: async (input: RegisterDonorInput & { id?: string }): Promise<OrganDonor> => {
+  registerDonor: async (input: RegisterDonorInput & { id?: string; has_consent?: boolean; consent_file_id?: string }): Promise<OrganDonor> => {
     const uid = (await supabase.auth.getUser()).data.user?.id;
-    return unwrap(supabase.from('organ_donors')
-      .upsert({ ...input, profile_id: uid, consent: (input as any).has_consent || input.consent_file_id ? 'granted' : 'pending' })
+    if (!uid) throw new Error('Not authenticated');
+    
+    // Omit consent from upsert to avoid RLS restrictions on update
+    const { has_consent, consent_file_id, id, ...rest } = input as any;
+    
+    const donor = await unwrap<OrganDonor>(supabase.from('organ_donors')
+      .upsert({ ...rest, profile_id: uid }, { onConflict: 'profile_id' })
       .select().single());
+
+    if (!donor) throw new Error('Failed to upsert donor profile');
+
+    const newConsent = consent_file_id ? 'granted' : (has_consent ? 'pending' : 'withdrawn');
+    
+    return unwrap(supabase.rpc('update_organ_consent', { 
+      p_donor_id: donor.id, 
+      p_consent: newConsent, 
+      p_file_id: consent_file_id || null 
+    }));
   },
 
   withdrawConsent: async (donorId: string): Promise<OrganDonor> => {
-    return unwrap(supabase.from('organ_donors')
-      .update({ consent: 'withdrawn', status: 'inactive' })
-      .eq('id', donorId)
-      .select().single());
+    return unwrap(supabase.rpc('update_organ_consent', { p_donor_id: donorId, p_consent: 'withdrawn' }));
   },
 
   registerRecipient: async (input: RegisterRecipientInput): Promise<OrganRecipient> => {

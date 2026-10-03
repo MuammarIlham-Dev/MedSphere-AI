@@ -47,7 +47,7 @@ export const bloodService = {
     return unwrap(supabase.from('blood_donors').upsert({
       profile_id: uid,
       ...input,
-    }).select().single());
+    }, { onConflict: 'profile_id' }).select().single());
   },
 
   logDonation: async (donorId: string, bankId: string, units: number = 1) => {

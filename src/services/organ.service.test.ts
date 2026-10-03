@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 vi.mock('@/lib/supabase', () => ({
   supabase: {
     from: vi.fn(),
+    rpc: vi.fn(),
     auth: {
       getUser: vi.fn(),
     }
@@ -16,11 +17,12 @@ describe('organ.service', () => {
     vi.clearAllMocks();
   });
 
-  it('registerDonor sets consent correctly', async () => {
+  it('registerDonor sets consent correctly using RPC', async () => {
     vi.mocked(supabase.auth.getUser).mockResolvedValueOnce({ data: { user: { id: 'u1' } }, error: null } as any);
     
-    const mockUpsert = vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'o1' }, error: null }) }) });
+    const mockUpsert = vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'donor-123' }, error: null }) }) });
     vi.mocked(supabase.from).mockReturnValue({ upsert: mockUpsert } as any);
+    vi.mocked(supabase.rpc).mockResolvedValue({ data: { id: 'donor-123', consent: 'pending' }, error: null } as any);
 
     await organService.registerDonor({
       has_consent: true,
@@ -32,21 +34,26 @@ describe('organ.service', () => {
     expect(supabase.from).toHaveBeenCalledWith('organ_donors');
     expect(mockUpsert).toHaveBeenCalledWith({
       profile_id: 'u1',
-      has_consent: true,
-      consent: 'granted',
       organs: ['heart', 'kidneys'],
       emergency_contact_name: 'Jane Doe',
       emergency_contact_phone: '123456789'
+    }, { onConflict: 'profile_id' });
+
+    expect(supabase.rpc).toHaveBeenCalledWith('update_organ_consent', {
+      p_donor_id: 'donor-123',
+      p_consent: 'pending',
+      p_file_id: null
     });
   });
 
-  it('withdrawConsent sets consent to withdrawn and status inactive', async () => {
-    vi.mocked(supabase.auth.getUser).mockResolvedValueOnce({ data: { user: { id: 'u1' } }, error: null } as any);
-    const mockUpdate = vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { has_consent: false }, error: null }) }) }) });
-    vi.mocked(supabase.from).mockReturnValue({ update: mockUpdate } as any);
+  it('withdrawConsent sets consent to withdrawn using RPC', async () => {
+    vi.mocked(supabase.rpc).mockResolvedValue({ data: { id: 'donor-123', consent: 'withdrawn' }, error: null } as any);
 
     await organService.withdrawConsent('donor-123');
 
-    expect(mockUpdate).toHaveBeenCalledWith({ consent: 'withdrawn', status: 'inactive' });
+    expect(supabase.rpc).toHaveBeenCalledWith('update_organ_consent', {
+      p_donor_id: 'donor-123',
+      p_consent: 'withdrawn'
+    });
   });
 });

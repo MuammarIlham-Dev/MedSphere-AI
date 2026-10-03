@@ -9,10 +9,13 @@ export const emergencyService = {
     const uid = (await supabase.auth.getUser()).data.user?.id;
     if (!uid) throw new ApiError('AUTH', 'Not signed in');
     const emergency = await unwrap<Emergency>(
-      supabase.from('emergencies')
-        .insert({ reporter_id: uid, lat: input.lat, lng: input.lng, type: input.type ?? 'medical', address: input.address })
-        .select().single(),
+      supabase.rpc('trigger_emergency_sos', { p_lat: input.lat, p_lng: input.lng, p_type: input.type ?? 'medical' })
     );
+    
+    if (input.address && !emergency.address) {
+       await supabase.from('emergencies').update({ address: input.address }).eq('id', emergency.id);
+       emergency.address = input.address;
+    }
     await publish(`sos:${input.city ?? 'national'}`, 'sos:new', { emergency });
     return emergency;
   },

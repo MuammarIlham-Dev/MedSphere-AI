@@ -84,6 +84,7 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         name: roomName,
+        privacy: "private",
         properties: {
           exp: Math.round(Date.now() / 1000) + 86400, // Expires in 24 hours
           enable_chat: true,
@@ -108,12 +109,40 @@ Deno.serve(async (req) => {
     }
 
     if (!response.ok) {
-      throw new Error("Failed to communicate with Daily.co");
+      throw new Error("Failed to communicate with Daily.co rooms API");
     }
 
-    const data = await response.json();
+    const roomData = await response.json();
+    
+    // Generate meeting token
+    // First fetch user's profile to get their name
+    const { data: profile } = await supabase.from('profiles').select('full_name, role').eq('id', user.id).single();
+    const userName = profile?.full_name || 'Participant';
+    const isOwner = profile?.role === 'doctor';
 
-    return new Response(JSON.stringify({ url: data.url }), {
+    const tokenResponse = await fetch("https://api.daily.co/v1/meeting-tokens", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        properties: {
+          room_name: roomName,
+          is_owner: isOwner,
+          user_name: userName,
+          user_id: user.id
+        }
+      })
+    });
+    
+    if (!tokenResponse.ok) {
+      throw new Error("Failed to generate Daily meeting token");
+    }
+    
+    const tokenData = await tokenResponse.json();
+
+    return new Response(JSON.stringify({ url: roomData.url, token: tokenData.token }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: any) {

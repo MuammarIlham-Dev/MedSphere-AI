@@ -29,7 +29,7 @@ describe('blood.service', () => {
       profile_id: 'u1',
       blood_group: 'A+',
       is_eligible: true
-    });
+    }, { onConflict: 'profile_id' });
   });
 
   it('createRequest filters out incorrect urgency mapping', async () => {

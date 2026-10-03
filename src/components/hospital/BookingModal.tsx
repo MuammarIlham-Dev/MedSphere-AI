@@ -73,13 +73,20 @@ export function BookingModal({ doctor, isOpen, onClose }: BookingModalProps) {
     if (modifier.toUpperCase() === 'PM' && hour < 12) hour += 12;
     if (modifier.toUpperCase() === 'AM' && hour === 12) hour = 0;
     
-    const scheduledAt = new Date(selectedDate);
-    scheduledAt.setHours(hour, parseInt(m || '0'), 0, 0);
+    // Construct local date parts (YYYY-MM-DD)
+    const year = selectedDate.getFullYear();
+    const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+    const day = String(selectedDate.getDate()).padStart(2, '0');
+    const hh = String(hour).padStart(2, '0');
+    const mm = String(parseInt(m || '0')).padStart(2, '0');
+    
+    // Force Asia/Dhaka offset (+06:00) so the backend receives the exact intended local time
+    const dhakaTimeString = `${year}-${month}-${day}T${hh}:${mm}:00+06:00`;
 
     bookAppointment.mutate({
       doctor_id: doctor.id,
       hospital_id: doctor.hospital_id || undefined,
-      scheduled_at: scheduledAt.toISOString(),
+      scheduled_at: dhakaTimeString,
       duration_min: scheduleForDay?.slot_minutes || 15,
       type: consultType,
       reason,

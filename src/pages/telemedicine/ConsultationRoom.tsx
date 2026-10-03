@@ -273,13 +273,13 @@ export default function ConsultationRoom() {
           throw new Error(errData.error || "Failed to join room");
         }
         
-        const { url } = await res.json();
+        const { url, token } = await res.json();
 
         co = DailyIframe.createCallObject({ url });
         setCallObject(co);
         
-        // Auto-join immediately
-        await co.join({ url });
+        // Auto-join immediately with token
+        await co.join({ url, token });
       } catch (err: any) {
         console.error("Daily join error", err);
         setError(err.message || "Failed to initialize call");
@@ -299,8 +299,11 @@ export default function ConsultationRoom() {
   if (error) return <div className="p-8 text-center text-red-500">{error}</div>;
   if (!callObject) return <div className="p-8 text-center text-slate-400">Initializing secure room...</div>;
 
-  const isDoctor = profile?.role === 'doctor';
-  const otherName = isDoctor ? 'Patient' : 'Dr. Smith';
+  // Since we pass user_name in token, Daily.co manages participant names
+  // We can fetch the remote participant's name directly from the call object
+  const participants = callObject.participants();
+  const remoteParticipant = Object.values(participants).find(p => !p.local);
+  const otherName = remoteParticipant?.user_name || 'Participant';
 
   return (
     <PageTransition>

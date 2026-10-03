@@ -52,3 +52,24 @@ export function useUpdateAppointmentStatus() {
     },
   });
 }
+
+export function useDoctorSchedules(doctorId: string | undefined) {
+  return useQuery({
+    queryKey: ['schedules', doctorId],
+    queryFn: () => appointmentService.getDoctorSchedules(doctorId!),
+    enabled: !!doctorId,
+  });
+}
+
+export function useUpdateSchedule() {
+  const qc = useQueryClient();
+  const toast = useUiStore((s) => s.toast);
+  return useMutation({
+    mutationFn: appointmentService.setSchedule,
+    onSuccess: (data: any) => {
+      toast('success', 'Schedule updated');
+      void qc.invalidateQueries({ queryKey: ['schedules', data.doctor_id] });
+    },
+    onError: (e) => toast('error', e instanceof Error ? e.message : 'Update failed'),
+  });
+}

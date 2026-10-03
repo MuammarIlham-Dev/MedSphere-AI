@@ -29,4 +29,42 @@ export const bloodService = {
 
   nearbyBanks: (city: string) =>
     unwrap<BloodBank[]>(supabase.from('blood_banks').select('*').eq('city', city).eq('verification', 'verified')),
+
+  getDonorProfile: async () => {
+    const uid = (await supabase.auth.getUser()).data.user?.id;
+    if (!uid) throw new Error('Not authenticated');
+    const { data, error } = await supabase.from('blood_donors').select('*').eq('profile_id', uid).maybeSingle();
+    if (error) throw error;
+    return data;
+  },
+
+  registerAsDonor: async (input: { blood_group: BloodGroup; is_available: boolean; privacy_settings: any }) => {
+    const uid = (await supabase.auth.getUser()).data.user?.id;
+    if (!uid) throw new Error('Not authenticated');
+    return unwrap(supabase.from('blood_donors').upsert({
+      profile_id: uid,
+      ...input,
+      updated_at: new Date().toISOString()
+    }).select().single());
+  },
+
+  logDonation: async (donorId: string, requestId?: string) => {
+    const now = new Date().toISOString();
+    await unwrap(supabase.from('blood_donations').insert({
+      donor_id: donorId,
+      request_id: requestId,
+      donation_date: now
+    }));
+    return unwrap(supabase.from('blood_donors').update({ last_donation_date: now }).eq('id', donorId).select().single());
+  },
+
+  nearbyDonors: (bloodGroup: string, lat: number, lng: number) => {
+    // Basic implementation: fetch active donors with matching blood group.
+    // Real implementation would use PostGIS or Haversine function via RPC for radius search.
+    return unwrap(supabase.from('blood_donors')
+      .select('*, profiles(full_name, city, lat, lng)')
+      .eq('blood_group', bloodGroup)
+      .eq('is_available', true)
+      .limit(50));
+  }
 };

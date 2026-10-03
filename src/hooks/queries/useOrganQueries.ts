@@ -32,12 +32,33 @@ export function useRunMatching() {
   });
 }
 
+export function useOrganDonorProfile() {
+  return useQuery({ queryKey: ['organ-donor-profile'], queryFn: organService.getOrganDonorProfile });
+}
+
 export function useRegisterDonor() {
+  const qc = useQueryClient();
   const toast = useUiStore((s) => s.toast);
   return useMutation({
     mutationFn: organService.registerDonor,
-    onSuccess: () => toast('success', 'Donor registration submitted'),
+    onSuccess: () => {
+      toast('success', 'Donor registration submitted');
+      void qc.invalidateQueries({ queryKey: ['organ-donor-profile'] });
+    },
     onError: (e) => toast('error', e instanceof Error ? e.message : 'Registration failed'),
+  });
+}
+
+export function useWithdrawOrganConsent() {
+  const qc = useQueryClient();
+  const toast = useUiStore((s) => s.toast);
+  return useMutation({
+    mutationFn: organService.withdrawConsent,
+    onSuccess: () => {
+      toast('success', 'Consent withdrawn successfully');
+      void qc.invalidateQueries({ queryKey: ['organ-donor-profile'] });
+    },
+    onError: (e) => toast('error', e instanceof Error ? e.message : 'Action failed'),
   });
 }
 

@@ -18,7 +18,9 @@ const HospitalDashboard = lazy(() => import('@/pages/roles/hospital/HospitalDash
 const MyAppointments = lazy(() => import('@/pages/roles/citizen/MyAppointments'));
 const ConsultationRoom = lazy(() => import('@/pages/telemedicine/ConsultationRoom'));
 const OrganDashboard = lazy(() => import('@/pages/services/organ-donation/OrganDashboard'));
+const OrganDonation = lazy(() => import('@/pages/roles/citizen/OrganDonation'));
 const BloodBankDashboard = lazy(() => import('@/pages/services/blood-bank/BloodBankDashboard'));
+const BloodDonation = lazy(() => import('@/pages/roles/citizen/BloodDonation'));
 const EmergencySOS = lazy(() => import('@/pages/emergency/EmergencySOS'));
 const EmergencyDashboard = lazy(() => import('@/pages/emergency/EmergencyDashboard'));
 const GovDashboard = lazy(() => import('@/pages/government/GovDashboard'));
@@ -66,7 +68,9 @@ export default function App() {
                 <Route path="/app/directory" element={<RoleGate allow={['citizen']}><HospitalDirectory /></RoleGate>} />
                 <Route path="/app/records" element={<RoleGate allow={['citizen']}><MedicalRecords /></RoleGate>} />
                 <Route path="/app/organ" element={<RoleGate allow={['citizen', 'organ_authority', 'hospital', 'admin', 'super_admin']}><OrganDashboard /></RoleGate>} />
+                <Route path="/app/organ-registry" element={<RoleGate allow={['citizen']}><OrganDonation /></RoleGate>} />
                 <Route path="/app/blood" element={<BloodBankDashboard />} />
+                <Route path="/app/blood-network" element={<RoleGate allow={['citizen']}><BloodDonation /></RoleGate>} />
                 <Route path="/app/emergency" element={<RoleGate allow={['citizen', 'doctor']}><EmergencySOS /></RoleGate>} />
                 <Route path="/app/emergency-dispatch" element={<RoleGate allow={['emergency_operator', 'admin', 'super_admin']}><EmergencyDashboard /></RoleGate>} />
                 <Route path="/app/gov" element={<RoleGate allow={['government', 'researcher', 'admin', 'super_admin']}><GovDashboard /></RoleGate>} />

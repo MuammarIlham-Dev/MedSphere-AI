@@ -1,5 +1,5 @@
 import { Badge } from '@/components/ui/Badge';
-import React from "react";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
 import {
   CalendarDays,
@@ -40,6 +40,7 @@ const getDepartmentStyle = (specialty: string) => {
 };
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
+import { BookingModal } from './BookingModal';
 
 export interface SupabaseDoctor {
   id: string;
@@ -52,6 +53,7 @@ export interface SupabaseDoctor {
   city: string | null;
   gender: string | null;
   phone: string | null;
+  hospital_id?: string | null;
   hospital_name: string | null;
 }
 
@@ -62,6 +64,7 @@ interface DoctorCardProps {
 
 export function DoctorCard({ doctor, style }: DoctorCardProps) {
   const navigate = useNavigate();
+  const [isBookingOpen, setIsBookingOpen] = useState(false);
   const avatarSrc = doctor.avatar_url ?? '/doctor-avatar.jpg';
   
   const nameParts = (doctor.full_name || 'Dr').split(' ').filter(Boolean);
@@ -248,7 +251,7 @@ export function DoctorCard({ doctor, style }: DoctorCardProps) {
         {/* Action Buttons */}
         <div className="flex gap-3 mt-3">
           <button
-            onClick={() => navigate('/app/appointments')}
+            onClick={() => setIsBookingOpen(true)}
             className="flex-1 max-w-44 h-8 rounded-lg bg-[#1a4a8d] hover:bg-[#12366b] text-white text-[13px] font-bold flex items-center justify-center gap-2 transition-colors shadow-sm"
           >
             <CalendarDays className="w-[15px] h-[15px]" />
@@ -263,6 +266,15 @@ export function DoctorCard({ doctor, style }: DoctorCardProps) {
           </a>
         </div>
       </div>
+      
+      {/* Booking Modal */}
+      {isBookingOpen && (
+        <BookingModal
+          doctor={doctor}
+          isOpen={isBookingOpen}
+          onClose={() => setIsBookingOpen(false)}
+        />
+      )}
     </motion.div>
   );
 }

@@ -44,9 +44,14 @@ export default function CitizenDashboard() {
             </div>
           } />
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           <KpiCard label="Upcoming appointments" value={upcoming.length} icon={<IoCalendarOutline className="h-5 w-5" />} />
-          <KpiCard label="Blood group" value={profile?.blood_group ?? 'Not set'} icon={<IoWaterOutline className="h-5 w-5" />} />
+          <Link to="/app/blood-network" className="group">
+            <KpiCard label="Blood Donation" value={profile?.blood_group ?? 'Join Network'} icon={<IoWaterOutline className="h-5 w-5 group-hover:text-rose-500 transition-colors" />} />
+          </Link>
+          <Link to="/app/organ-registry" className="group">
+            <KpiCard label="Organ Donor" value="Register Consent" icon={<IoHeartOutline className="h-5 w-5 group-hover:text-rose-500 transition-colors" />} />
+          </Link>
           <Link to="/app/records" className="group">
             <KpiCard label="Active prescriptions" value={activePrescriptions} icon={<IoMedkitOutline className="h-5 w-5 group-hover:text-brand-600 transition-colors" />} />
           </Link>

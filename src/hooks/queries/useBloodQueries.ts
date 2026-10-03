@@ -41,3 +41,40 @@ export function useCreateBloodRequest() {
     },
   });
 }
+
+export function useDonorProfile() {
+  return useQuery({ queryKey: ['blood-donor-profile'], queryFn: bloodService.getDonorProfile });
+}
+
+export function useRegisterDonor() {
+  const qc = useQueryClient();
+  const toast = useUiStore((s) => s.toast);
+  return useMutation({
+    mutationFn: bloodService.registerAsDonor,
+    onSuccess: () => {
+      toast('success', 'Donor profile updated');
+      void qc.invalidateQueries({ queryKey: ['blood-donor-profile'] });
+    },
+    onError: (e) => toast('error', e instanceof Error ? e.message : 'Update failed'),
+  });
+}
+
+export function useLogDonation() {
+  const qc = useQueryClient();
+  const toast = useUiStore((s) => s.toast);
+  return useMutation({
+    mutationFn: ({ donorId, requestId }: { donorId: string, requestId?: string }) => bloodService.logDonation(donorId, requestId),
+    onSuccess: () => {
+      toast('success', 'Donation logged successfully');
+      void qc.invalidateQueries({ queryKey: ['blood-donor-profile'] });
+    },
+  });
+}
+
+export function useNearbyDonors(bloodGroup: string, lat: number, lng: number) {
+  return useQuery({
+    queryKey: ['nearby-donors', bloodGroup, lat, lng],
+    queryFn: () => bloodService.nearbyDonors(bloodGroup, lat, lng),
+    enabled: !!bloodGroup,
+  });
+}

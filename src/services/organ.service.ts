@@ -3,10 +3,24 @@ import { unwrap } from '@/lib/api';
 import type { OrganDonor, OrganMatch, OrganRecipient, OrganStats, RegisterDonorInput, RegisterRecipientInput } from '@/types';
 
 export const organService = {
-  registerDonor: async (input: RegisterDonorInput): Promise<OrganDonor> => {
+  getOrganDonorProfile: async (): Promise<OrganDonor | null> => {
+    const uid = (await supabase.auth.getUser()).data.user?.id;
+    if (!uid) return null;
+    const { data } = await supabase.from('organ_donors').select('*').eq('profile_id', uid).maybeSingle();
+    return data;
+  },
+
+  registerDonor: async (input: RegisterDonorInput & { id?: string }): Promise<OrganDonor> => {
     const uid = (await supabase.auth.getUser()).data.user?.id;
     return unwrap(supabase.from('organ_donors')
-      .insert({ ...input, profile_id: uid, consent: input.consent_file_id ? 'granted' : 'pending' })
+      .upsert({ ...input, profile_id: uid, consent: input.consent_file_id ? 'granted' : 'pending' })
+      .select().single());
+  },
+
+  withdrawConsent: async (donorId: string): Promise<OrganDonor> => {
+    return unwrap(supabase.from('organ_donors')
+      .update({ consent: 'withdrawn', status: 'inactive' })
+      .eq('id', donorId)
       .select().single());
   },
 

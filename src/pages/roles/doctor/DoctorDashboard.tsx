@@ -14,6 +14,7 @@ import { useUiStore } from '@/stores/uiStore';
 import type { AppointmentStatus } from '@/types';
 import { useRef } from 'react';
 import { useReveal } from '@/lib/gsap';
+import { ScheduleSettings } from '@/components/doctor/ScheduleSettings';
 
 const NEXT: Partial<Record<AppointmentStatus, AppointmentStatus>> = {
   booked: 'confirmed', confirmed: 'checked_in', checked_in: 'in_progress', in_progress: 'completed',
@@ -92,6 +93,11 @@ export default function DoctorDashboard() {
           },
         }} />
       </div>
+
+      {doctor?.id && (
+        <ScheduleSettings doctorId={doctor.id} />
+      )}
+      
       </div>
     </PageTransition>
   );

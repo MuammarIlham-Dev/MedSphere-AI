@@ -24,7 +24,7 @@ export function DoctorAnalytics({ doctorId }: { doctorId: string }) {
         .select(`
           type, 
           status, 
-          doctors!inner ( consultation_fee ),
+          amount_charged,
           appointment_feedback ( rating )
         `)
         .eq('doctor_id', doctorId)
@@ -42,14 +42,16 @@ export function DoctorAnalytics({ doctorId }: { doctorId: string }) {
       for (const row of rows || []) {
         if (row.type === 'video') videoCount++;
         if (row.type === 'clinic') clinicCount++;
-        // @ts-ignore
-        totalRevenue += (row.doctors?.consultation_fee || 0);
         
-        // @ts-ignore
-        // @ts-ignore
-        if (row.appointment_feedback && row.appointment_feedback.rating) {
-          // @ts-ignore
-          ratingSum += row.appointment_feedback.rating;
+        totalRevenue += (row.amount_charged || 0);
+        
+        // appointment_feedback can be an array if there are multiple feedbacks (though there should only be one)
+        const feedback = Array.isArray(row.appointment_feedback) 
+          ? row.appointment_feedback[0] 
+          : row.appointment_feedback;
+          
+        if (feedback && typeof feedback.rating === 'number') {
+          ratingSum += feedback.rating;
           ratingCount++;
         }
       }
@@ -84,7 +86,7 @@ export function DoctorAnalytics({ doctorId }: { doctorId: string }) {
     <div className="mt-6 grid gap-4 lg:grid-cols-3">
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-surface-dark">
         <h3 className="text-sm font-medium text-slate-500">30-Day Revenue</h3>
-        <p className="mt-2 text-3xl font-semibold">${totalRevenue}</p>
+        <p className="mt-2 text-3xl font-semibold">৳{totalRevenue}</p>
         <p className="mt-1 text-xs text-slate-400">Based on {completedCount} completed consultations</p>
       </div>
 

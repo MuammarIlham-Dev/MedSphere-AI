@@ -39,7 +39,9 @@ export function ScheduleSettings({ doctorId }: ScheduleSettingsProps) {
   const handleToggleActive = (weekday: number, isActive: boolean) => {
     const existing = localSchedules.find(s => s.weekday === weekday);
     if (!existing) {
+      const newSchedule = { doctor_id: doctorId, weekday, start_time: '09:00', end_time: '17:00', slot_minutes: 15, is_active: isActive, type: 'clinic' };
       handleUpdate(weekday, 'is_active', isActive);
+      updateSchedule.mutate(newSchedule);
     } else {
       handleUpdate(weekday, 'is_active', isActive);
       // Immediately persist toggle

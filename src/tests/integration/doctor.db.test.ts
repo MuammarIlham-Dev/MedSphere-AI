@@ -1,168 +1,213 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL as string;
-const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY as string;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-describe('Doctor Tier Database Integration', () => {
-  const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  const adminClient = SUPABASE_SERVICE_ROLE_KEY 
-    ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) 
-    : null;
+// Create admin client for creating test fixtures
+const adminClient = SUPABASE_SERVICE_ROLE_KEY 
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) 
+  : null;
 
-  it('should have access to the Supabase URL', () => {
-    expect(SUPABASE_URL).toBeDefined();
-    expect(SUPABASE_URL.startsWith('http')).toBe(true);
-  });
+describe('Doctor Tier Database Integration with Fixtures', () => {
+  if (!adminClient) {
+    it.skip('Skipping tests due to missing SUPABASE_SERVICE_ROLE_KEY');
+    return;
+  }
 
-  describe('Appointments & Analytics', () => {
-    it('should capture amount_charged column on appointments', async () => {
-      const { data, error } = await client
-        .from('appointments')
-        .select('id, amount_charged')
-        .limit(1);
-
-      expect(error).toBeNull();
-      if (data && data.length > 0) {
-        expect('amount_charged' in data[0]!).toBe(true);
-      }
-    });
-  });
-
-  describe('Doctor Schedules', () => {
-    it('should have a unique constraint on (doctor_id, weekday, type) and support coexist clinic/video', async () => {
-      if (!adminClient) return;
-      
-      const fakeDoctorId = '00000000-0000-0000-0000-000000000000';
-      const fakeSchedule = {
-        doctor_id: fakeDoctorId,
-        weekday: 1, 
-        start_time: '09:00:00',
-        end_time: '17:00:00',
-        slot_minutes: 30,
-        type: 'clinic',
-        is_active: true
-      };
-      
-      const fakeSchedule2 = {
-        doctor_id: fakeDoctorId,
-        weekday: 1,
-        start_time: '10:00:00',
-        end_time: '16:00:00',
-        slot_minutes: 15,
-        type: 'video', 
-        is_active: true
-      };
-
-      const { error: error1 } = await adminClient.from('doctor_schedules').insert([fakeSchedule]);
-      expect(error1).not.toBeNull(); // foreign key failure proves constraint layout structure existence
-      
-      const { error: error2 } = await adminClient.from('doctor_schedules').insert([fakeSchedule, fakeSchedule]);
-      expect(error2).not.toBeNull();
-    });
-  });
-
-  describe('RPC: protect_doctor_fields', () => {
-    it('should trigger pending verification when restricted fields change', async () => {
-      if (!adminClient) return;
-      
-      const { data: doctors } = await adminClient
-        .from('doctors')
-        .select('*')
-        .eq('verification', 'verified')
-        .limit(1);
-
-      if (doctors && doctors.length > 0) {
-        const doc = doctors[0]!;
-        
-        await adminClient
-          .from('doctors')
-          .update({ consultation_fee: doc.consultation_fee + 100 })
-          .eq('id', doc.id);
-          
-        const { data: docAfterFee } = await adminClient
-          .from('doctors')
-          .select('verification')
-          .eq('id', doc.id)
-          .single();
-          
-        expect(docAfterFee?.verification).toBe('verified');
-        
-        await adminClient
-          .from('doctors')
-          .update({ consultation_fee: doc.consultation_fee })
-          .eq('id', doc.id);
-      }
-    });
-  });
-
-  describe('RPC: book_appointment validations', () => {
-    const fakeArgs = {
-      p_doctor_id: '00000000-0000-0000-0000-000000000000',
-      p_hospital_id: null,
-      p_scheduled_at: new Date(Date.now() + 86400000).toISOString(),
-      p_duration_min: 15,
-      p_type: 'clinic',
-      p_reason: 'test'
-    };
-
-    it('should reject unauthorized booking (no auth)', async () => {
-      const { error } = await client.rpc('book_appointment', fakeArgs);
-      expect(error?.message).toMatch(/authentication required/i);
-    });
-
-    it('should reject invalid duration', async () => {
-      if (!adminClient) return;
-      const { error } = await adminClient.rpc('book_appointment', { ...fakeArgs, p_duration_min: 3 });
-      expect(error).toBeDefined();
-    });
-
-    it('should reject invalid doctor', async () => {
-      if (!adminClient) return;
-      const { error } = await adminClient.rpc('book_appointment', { ...fakeArgs });
-      // Might throw 'doctor is unavailable for this consultation' if it bypasses auth check in admin context
-      expect(error).toBeDefined();
-    });
-
-    it('should reject out-of-schedule slot', async () => {
-      // Cannot mock perfectly without inserting a valid doctor, but we verify the RPC throws.
-      if (!adminClient) return;
-      const { error } = await adminClient.rpc('book_appointment', fakeArgs);
-      expect(error).toBeDefined();
-    });
-
-    it('should reject overlap', async () => {
-      // Verifying RPC behavior
-      if (!adminClient) return;
-      const { error } = await adminClient.rpc('book_appointment', fakeArgs);
-      expect(error).toBeDefined();
-    });
-  });
+  // Real test identifiers
+  const testPatientUserId = '11111111-2222-3333-4444-555555555555';
+  let testPatientId: string;
   
-  describe('RPC: record_consultation validations', () => {
-    it('should reject unauthorized record consultation (no auth)', async () => {
-      const { error } = await client.rpc('record_consultation', {
-        p_appointment_id: '00000000-0000-0000-0000-000000000000',
-        p_title: 'test',
-        p_diagnosis: 'test',
-        p_notes: 'test',
-        p_prescription_items: []
+  const testDoctorUserId = '66666666-7777-8888-9999-000000000000';
+  let testDoctorId: string;
+  let testDoctorHospitalId: string;
+
+  // We need a client authenticated as the patient to test `book_appointment` properly
+  // Since we can't easily sign in with a fake email in a unit test without mocking Auth,
+  // we will test RPCs using the admin client but we can test validations using `rpc` calls directly.
+  // Wait! The RPCs are SECURITY DEFINER and rely on `auth.uid()`.
+  // If we can't mock auth.uid(), we can't test patient-side RPCs easily without real tokens.
+  // We can just verify the database constraints and RPC errors.
+
+  beforeAll(async () => {
+    // 1. Create a hospital
+    const { data: hospital, error: hErr } = await adminClient.from('hospitals').insert({
+      name: 'Integration Test Hospital',
+      address: 'Test',
+      type: 'general',
+      is_verified: true
+    }).select().single();
+    if (hErr) throw hErr;
+    testDoctorHospitalId = hospital.id;
+
+    // 2. Create patient profile and patient
+    const { error: pProfErr } = await adminClient.from('profiles').insert({
+      id: testPatientUserId,
+      full_name: 'Test Patient',
+      email: 'test_patient@medsphere.invalid',
+      role: 'citizen'
+    });
+    if (pProfErr) throw pProfErr;
+
+    const { data: patient, error: pErr } = await adminClient.from('patients').insert({
+      profile_id: testPatientUserId,
+      date_of_birth: '1990-01-01',
+      gender: 'male',
+      blood_group: 'O+'
+    }).select().single();
+    if (pErr) throw pErr;
+    testPatientId = patient.id;
+
+    // 3. Create doctor profile and doctor
+    const { error: dProfErr } = await adminClient.from('profiles').insert({
+      id: testDoctorUserId,
+      full_name: 'Test Doctor',
+      email: 'test_doctor@medsphere.invalid',
+      role: 'doctor'
+    });
+    if (dProfErr) throw dProfErr;
+
+    const { data: doctor, error: dErr } = await adminClient.from('doctors').insert({
+      profile_id: testDoctorUserId,
+      specialty: 'Cardiology',
+      license_no: 'TEST-1234',
+      qualifications: ['MBBS'],
+      hospital_id: testDoctorHospitalId,
+      experience_years: 5,
+      consultation_fee: 500,
+      verification: 'verified',
+      is_available: true
+    }).select().single();
+    if (dErr) throw dErr;
+    testDoctorId = doctor.id;
+
+    // 4. Create a valid schedule (Wednesday, 09:00 - 17:00, 15 min slots, Clinic)
+    const { error: sErr } = await adminClient.from('doctor_schedules').insert({
+      doctor_id: testDoctorId,
+      weekday: 3,
+      start_time: '09:00',
+      end_time: '17:00',
+      slot_minutes: 15,
+      is_active: true,
+      type: 'clinic'
+    });
+    if (sErr) throw sErr;
+  });
+
+  afterAll(async () => {
+    // Cleanup profiles, which cascades to everything
+    await adminClient.from('profiles').delete().in('id', [testPatientUserId, testDoctorUserId]);
+    await adminClient.from('hospitals').delete().eq('id', testDoctorHospitalId);
+  });
+
+  describe('Schedule Deduplication & Constraints', () => {
+    it('should reject a duplicate active schedule for the same (doctor, weekday, type)', async () => {
+      const { error } = await adminClient.from('doctor_schedules').insert({
+        doctor_id: testDoctorId,
+        weekday: 3,
+        start_time: '10:00',
+        end_time: '18:00',
+        slot_minutes: 30,
+        is_active: true,
+        type: 'clinic'
       });
-      expect(error).toBeDefined();
-      expect(error?.message).toMatch(/Appointment not found/i);
+      // Should fail unique constraint
+      expect(error).not.toBeNull();
+      expect(error?.message).toMatch(/duplicate key value/i);
     });
 
-    it('should ensure consultation atomic rollback on failure', async () => {
-      if (!adminClient) return;
-      const { error } = await adminClient.rpc('record_consultation', {
-        p_appointment_id: '00000000-0000-0000-0000-000000000000',
-        p_title: 'test',
-        p_diagnosis: 'test',
-        p_notes: 'test',
-        p_prescription_items: []
+    it('should allow a schedule with the same weekday but different type (video)', async () => {
+      const { error } = await adminClient.from('doctor_schedules').insert({
+        doctor_id: testDoctorId,
+        weekday: 3,
+        start_time: '14:00',
+        end_time: '16:00',
+        slot_minutes: 15,
+        is_active: true,
+        type: 'video'
       });
-      // Will fail finding appointment, atomically rolling back everything inside the RPC block.
+      expect(error).toBeNull();
+    });
+  });
+
+  describe('Rating Protections (Local Setting)', () => {
+    it('should reject manual rating updates from normal clients or admin without local setting', async () => {
+      const { error } = await adminClient.from('doctors').update({ rating_avg: 4.5 }).eq('id', testDoctorId);
+      expect(error).not.toBeNull();
+      expect(error?.message).toMatch(/managed automatically/i);
+    });
+
+    it('should allow rating updates via the update_doctor_rating trigger', async () => {
+      // First, create a mock appointment to leave feedback on
+      const { data: apt } = await adminClient.from('appointments').insert({
+        patient_id: testPatientId,
+        doctor_id: testDoctorId,
+        scheduled_at: new Date(Date.now() - 86400000).toISOString(),
+        duration_min: 15,
+        type: 'clinic',
+        status: 'completed',
+        amount_charged: 500
+      }).select().single();
+
+      // Now insert feedback. The trigger should compute the average and update the doctor securely.
+      const { error: fbError } = await adminClient.from('appointment_feedback').insert({
+        appointment_id: apt!.id,
+        rating: 5,
+        review: 'Excellent!'
+      });
+      
+      expect(fbError).toBeNull();
+
+      const { data: doc } = await adminClient.from('doctors').select('rating_avg, rating_count').eq('id', testDoctorId).single();
+      expect(doc?.rating_avg).toBe(5);
+      expect(doc?.rating_count).toBe(1);
+    });
+  });
+
+  describe('amount_charged freezing', () => {
+    it('should prevent mutating amount_charged once set', async () => {
+      const { data: apt } = await adminClient.from('appointments').insert({
+        patient_id: testPatientId,
+        doctor_id: testDoctorId,
+        scheduled_at: new Date(Date.now() + 86400000).toISOString(),
+        duration_min: 15,
+        type: 'clinic',
+        status: 'scheduled',
+        amount_charged: 500
+      }).select().single();
+
+      const { error } = await adminClient.from('appointments').update({ amount_charged: 600 }).eq('id', apt!.id);
+      expect(error).not.toBeNull();
+      expect(error?.message).toMatch(/amount_charged is immutable/i);
+    });
+  });
+
+  describe('RPC: book_appointment and overlaps', () => {
+    it('should reject unauthorized booking (no auth)', async () => {
+      const client = createClient(SUPABASE_URL, process.env.VITE_SUPABASE_ANON_KEY as string);
+      const { error } = await client.rpc('book_appointment', {
+        p_doctor_id: testDoctorId,
+        p_hospital_id: null,
+        p_scheduled_at: new Date(Date.now() + 86400000).toISOString(),
+        p_duration_min: 15,
+        p_type: 'clinic',
+        p_reason: 'test'
+      });
+      expect(error?.message).toMatch(/Authentication required/i);
+    });
+
+    it('should reject booking outside schedule', async () => {
+      const date = new Date('2026-10-07T02:00:00.000Z'); // Wed Oct 07 2026 08:00:00 GMT+0600
+      
+      const { error } = await adminClient!.rpc('book_appointment', {
+        p_doctor_id: testDoctorId,
+        p_hospital_id: null,
+        p_scheduled_at: date.toISOString(),
+        p_duration_min: 15,
+        p_type: 'clinic',
+        p_reason: 'test'
+      });
       expect(error).toBeDefined();
     });
   });

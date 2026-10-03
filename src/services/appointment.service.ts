@@ -2,6 +2,20 @@ import { supabase } from '@/lib/supabase';
 import { unwrap, ApiError } from '@/lib/api';
 import type { Appointment, AppointmentStatus, BookAppointmentInput } from '@/types';
 
+export interface DoctorSchedule {
+  id: string;
+  doctor_id: string;
+  weekday: number;
+  start_time: string;
+  end_time: string;
+  slot_minutes: number;
+  is_active: boolean;
+  type: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type DoctorScheduleInsert = Omit<DoctorSchedule, 'id' | 'created_at' | 'updated_at'> & { id?: string };
 export const appointmentService = {
   async book(input: BookAppointmentInput): Promise<Appointment> {
     const uid = (await supabase.auth.getUser()).data.user?.id;
@@ -45,14 +59,16 @@ export const appointmentService = {
     })),
 
 
-  getDoctorSchedules: async (doctorId: string) => {
+
+
+  getDoctorSchedules: async (doctorId: string): Promise<DoctorSchedule[]> => {
     return unwrap(supabase.from('doctor_schedules')
       .select('*')
       .eq('doctor_id', doctorId)
       .order('weekday'));
   },
 
-  setSchedule: async (schedule: any) => {
+  setSchedule: async (schedule: DoctorScheduleInsert): Promise<DoctorSchedule> => {
     return unwrap(supabase.from('doctor_schedules').upsert(schedule, { onConflict: 'doctor_id,weekday,type' }).select().single());
   }
 };

@@ -46,10 +46,10 @@ export function BookingModal({ doctor, isOpen, onClose }: BookingModalProps) {
     const [endHour, endMin] = scheduleForDay.end_time.split(':').map(Number);
     
     let current = new Date(selectedDate);
-    current.setHours(startHour, startMin, 0, 0);
+    current.setHours(startHour || 0, startMin || 0, 0, 0);
     
     const end = new Date(selectedDate);
-    end.setHours(endHour, endMin, 0, 0);
+    end.setHours(endHour || 0, endMin || 0, 0, 0);
     
     const slotDuration = scheduleForDay.slot_minutes || 15;
 

@@ -26,6 +26,22 @@ export function useBloodInventory(bankId: string | undefined) {
   return query;
 }
 
+export function useAllBloodInventories() {
+  const qc = useQueryClient();
+  const query = useQuery({
+    queryKey: ['all-blood-inventories'],
+    queryFn: bloodService.allInventories,
+  });
+  useEffect(() => {
+    const ch = supabase.channel('all-blood-inventory')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'blood_inventory' },
+        () => qc.invalidateQueries({ queryKey: ['all-blood-inventories'] }))
+      .subscribe();
+    return () => { void supabase.removeChannel(ch); };
+  }, [qc]);
+  return query;
+}
+
 export function useBloodRequests(status?: string) {
   return useQuery({ queryKey: ['blood-requests', status ?? 'all'], queryFn: () => bloodService.requests(status) });
 }

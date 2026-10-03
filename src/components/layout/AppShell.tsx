@@ -207,7 +207,7 @@ export function AppShell() {
           <Outlet />
         </main>
       </div>
-      {/* <MobileBottomNav /> disabled as requested */}
+      <MobileBottomNav />
       <ToastHost />
     </div>
   );

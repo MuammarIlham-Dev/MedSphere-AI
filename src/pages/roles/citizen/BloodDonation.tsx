@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useDonorProfile, useRegisterDonor, useBloodRequests, useLogDonation } from '@/hooks/queries/useBloodQueries';
+import { useDonorProfile, useRegisterDonor, useBloodRequests, useLogDonation, useAllBloodInventories } from '@/hooks/queries/useBloodQueries';
 import { useAuthStore } from '@/stores/authStore';
 import { Button } from '@/components/ui/Button';
 import { BloodGroup } from '@/types';
@@ -159,7 +159,54 @@ export default function BloodDonation() {
         </div>
       </div>
 
+      {/* Blood Bank Network Inventory */}
+      <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
+        <h2 className="text-xl font-semibold text-slate-100 mb-6 flex items-center gap-2">
+          <Activity className="w-5 h-5 text-brand-400" />
+          Network Inventory
+        </h2>
+        <NetworkInventory />
+      </div>
+
       {showCreateModal && <CreateRequestModal onClose={() => setShowCreateModal(false)} />}
+    </div>
+  );
+}
+
+function NetworkInventory() {
+  const { data, isLoading } = useAllBloodInventories();
+  if (isLoading) return <div className="text-slate-400 py-4">Loading network inventory...</div>;
+  if (!data?.length) return <div className="text-slate-400 py-4">No inventory data available.</div>;
+
+  // Group by bank
+  const banks = data.reduce((acc: Record<string, any>, row: any) => {
+    if (!acc[row.bank_id]) {
+      acc[row.bank_id] = {
+        name: row.blood_banks?.name || 'Unknown Bank',
+        city: row.blood_banks?.city || 'Unknown City',
+        inventory: []
+      };
+    }
+    acc[row.bank_id].inventory.push({ group: row.blood_group, units: row.units_available });
+    return acc;
+  }, {});
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {Object.entries(banks).map(([id, bank]: [string, any]) => (
+        <div key={id} className="bg-slate-900/50 border border-slate-700 p-4 rounded-lg">
+          <h3 className="font-medium text-slate-200">{bank.name}</h3>
+          <p className="text-xs text-slate-400 mb-4">{bank.city}</p>
+          <div className="flex flex-wrap gap-2">
+            {bank.inventory.map((inv: any) => (
+              <div key={inv.group} className="px-2 py-1 bg-slate-800 border border-slate-600 rounded text-xs">
+                <span className="font-semibold text-rose-400">{inv.group}</span>
+                <span className="text-slate-300 ml-1">{inv.units} U</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

@@ -6,16 +6,16 @@ export const appointmentService = {
   async book(input: BookAppointmentInput): Promise<Appointment> {
     const uid = (await supabase.auth.getUser()).data.user?.id;
     if (!uid) throw new ApiError('AUTH', 'Not signed in');
-    const dayStart = new Date(input.scheduled_at); dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(input.scheduled_at); dayEnd.setHours(23, 59, 59, 999);
-    const { count } = await supabase
-      .from('appointments').select('id', { count: 'exact', head: true })
-      .eq('doctor_id', input.doctor_id)
-      .gte('scheduled_at', dayStart.toISOString()).lte('scheduled_at', dayEnd.toISOString());
+    
     return unwrap<Appointment>(
-      supabase.from('appointments')
-        .insert({ ...input, patient_id: uid, token_number: (count ?? 0) + 1, status: 'booked' })
-        .select().single(),
+      supabase.rpc('book_appointment', {
+        p_doctor_id: input.doctor_id,
+        p_hospital_id: input.hospital_id,
+        p_scheduled_at: input.scheduled_at,
+        p_duration_min: input.duration_min,
+        p_type: input.type,
+        p_reason: input.reason
+      })
     );
   },
 
@@ -38,9 +38,11 @@ export const appointmentService = {
   },
 
   setStatus: (id: string, status: AppointmentStatus, cancelReason?: string) =>
-    unwrap(supabase.from('appointments')
-      .update({ status, ...(cancelReason ? { cancel_reason: cancelReason } : {}) })
-      .eq('id', id).select().single()),
+    unwrap(supabase.rpc('transition_appointment', {
+      p_appointment_id: id,
+      p_status: status,
+      p_reason: cancelReason
+    })),
 
   reschedule: (id: string, when: string) =>
     unwrap(supabase.from('appointments').update({ scheduled_at: when, status: 'rescheduled' }).eq('id', id).select().single()),

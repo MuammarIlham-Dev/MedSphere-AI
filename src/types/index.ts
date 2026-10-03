@@ -316,6 +316,7 @@ export interface BookAppointmentInput {
   doctor_id: string;
   hospital_id?: string | null;
   scheduled_at: string;
+  duration_min: number;
   type: ConsultationType;
   reason?: string;
 }

@@ -13,6 +13,9 @@ export const bloodService = {
   inventory: (bankId: string) =>
     unwrap<BloodInventoryRow[]>(supabase.from('blood_inventory').select('*').eq('bank_id', bankId)),
 
+  allInventories: () => 
+    unwrap<any[]>(supabase.from('blood_inventory').select('*, blood_banks(name, city, lat, lng)')),
+
   upsertInventory: (rows: Array<Pick<BloodInventoryRow, 'bank_id' | 'blood_group' | 'units_available' | 'units_reserved'>>) =>
     unwrap(supabase.from('blood_inventory').upsert(rows, { onConflict: 'bank_id,blood_group' }).select()),
 

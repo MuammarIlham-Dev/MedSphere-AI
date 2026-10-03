@@ -38,7 +38,7 @@ export function useMyPrescriptions() {
           .from('prescriptions')
           .select(`
             *,
-            doctor:doctor_id(full_name, specialty),
+            doctor:doctor_id(specialty, profiles(full_name)),
             items:prescription_items(
               *,
               medicine:medicine_id(name)
@@ -47,7 +47,13 @@ export function useMyPrescriptions() {
           .eq('patient_id', profile!.id)
           .order('created_at', { ascending: false })
       );
-      return data;
+      return data.map((d: any) => ({
+        ...d,
+        doctor: d.doctor ? {
+          full_name: d.doctor.profiles?.full_name,
+          specialty: d.doctor.specialty
+        } : undefined
+      }));
     },
     enabled: !!profile?.id,
   });

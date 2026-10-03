@@ -55,6 +55,9 @@ export interface SupabaseDoctor {
   phone: string | null;
   hospital_id?: string | null;
   hospital_name: string | null;
+  rating_avg: number;
+  rating_count: number;
+  bio: string | null;
 }
 
 interface DoctorCardProps {
@@ -74,8 +77,8 @@ export function DoctorCard({ doctor, style }: DoctorCardProps) {
 
   // Deriving fallback/mock values to fully showcase the UI
   const credentials = doctor.qualifications || [];
-  const rating = (4.5 + Math.random() * 0.5).toFixed(1);
-  const reviewCount = Math.floor(Math.random() * 500) + 50;
+  const rating = doctor.rating_avg.toFixed(1);
+  const reviewCount = doctor.rating_count;
   
   const specializations = doctor.specialty.split(',').map(s => s.trim()).filter(Boolean).slice(0, 3);
   const primarySpecialty = specializations[0] || 'General';
@@ -83,7 +86,7 @@ export function DoctorCard({ doctor, style }: DoctorCardProps) {
   const DeptIcon = deptStyle.icon;
   
   // Create a realistic description based on actual db data
-  const description = `${doctor.full_name} is a renowned ${specializations[0] || 'Medical Professional'} with over ${doctor.experience_years || 10} years of experience in the field of ${doctor.specialty}. Dedicated to providing comprehensive and compassionate care to patients.`;
+  const description = doctor.bio || `${doctor.full_name} is a renowned ${specializations[0] || 'Medical Professional'} with over ${doctor.experience_years || 0} years of experience in the field of ${doctor.specialty}. Dedicated to providing comprehensive and compassionate care to patients.`;
 
   // Determine designation from qualifications or fallback
   const designation = credentials.some(q => q.toLowerCase().includes('prof')) ? 'Professor' : 'Doctor';
@@ -223,8 +226,10 @@ export function DoctorCard({ doctor, style }: DoctorCardProps) {
             <div className="flex flex-col">
               <span className="text-[12px] font-semibold text-slate-700 mb-0.5">Next Available</span>
               <div className="flex items-center gap-3 pb-1">
-                <span className="text-[14px] font-bold text-slate-900 truncate">Tomorrow, 10:00 AM</span>
-                <button className="text-[11px] font-semibold text-[#1a4a8d] hover:text-blue-700 hover:underline flex items-center gap-0.5 shrink-0">
+                <span className="text-[14px] font-bold text-slate-900 truncate">Check Schedules</span>
+                <button 
+                  onClick={() => setIsBookingOpen(true)}
+                  className="text-[11px] font-semibold text-[#1a4a8d] hover:text-blue-700 hover:underline flex items-center gap-0.5 shrink-0">
                   View all slots
                   <ArrowRight className="w-3 h-3 stroke-[2]" />
                 </button>

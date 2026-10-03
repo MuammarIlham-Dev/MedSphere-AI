@@ -48,7 +48,7 @@ export function MedicalRecords() {
                     <Badge tone={p.status === 'active' ? 'success' : 'neutral'}>{p.status}</Badge>
                   </div>
                   <ul className="mt-3 space-y-2">
-                    {p.items?.map((item) => (
+                    {p.items?.map((item: any) => (
                       <li key={item.id} className="flex justify-between text-sm">
                         <span className="font-medium">{item.medicine?.name}</span>
                         <span className="text-slate-500 text-xs text-right">

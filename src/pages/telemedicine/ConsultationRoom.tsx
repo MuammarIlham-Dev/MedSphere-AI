@@ -73,7 +73,7 @@ function CallInterface({ context }: { context: TelemedicineJoinContext }) {
     return () => {
       cancelled = true;
       window.clearInterval(timer);
-      void telemedicineService.leave(context.sessionId);
+      if (!finalizedRef.current) void telemedicineService.leave(context.sessionId);
     };
   }, [context.sessionId, context.appointmentId]);
 

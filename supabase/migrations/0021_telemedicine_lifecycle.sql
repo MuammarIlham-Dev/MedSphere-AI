@@ -185,6 +185,14 @@ BEGIN
     RAISE EXCEPTION 'telemedicine session unavailable';
   END IF;
 
+  IF s.expires_at < now() THEN
+    RAISE EXCEPTION 'telemedicine session window has expired';
+  END IF;
+
+  IF a.status NOT IN ('confirmed', 'checked_in', 'in_progress') THEN
+    RAISE EXCEPTION 'video consultation is no longer open';
+  END IF;
+
   SELECT * INTO a FROM public.appointments WHERE id = s.appointment_id;
   SELECT * INTO d FROM public.doctors WHERE id = a.doctor_id;
 
@@ -247,6 +255,10 @@ BEGIN
 
   IF NOT FOUND OR s.status = 'ended' THEN
     RAISE EXCEPTION 'telemedicine session unavailable';
+  END IF;
+
+  IF s.expires_at < now() THEN
+    RAISE EXCEPTION 'telemedicine session window has expired';
   END IF;
 
   SELECT * INTO a FROM public.appointments WHERE id = s.appointment_id;

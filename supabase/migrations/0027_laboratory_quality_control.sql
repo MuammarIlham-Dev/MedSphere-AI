@@ -532,7 +532,7 @@ RETURNS public.lab_reports
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $
+AS $$
 DECLARE
   report_row public.lab_reports;
   order_row public.lab_orders;

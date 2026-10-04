@@ -12,6 +12,7 @@ const CORS = {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
+  if (req.method !== 'POST') return new Response('method not allowed', { status: 405, headers: CORS });
 
   const expected = Deno.env.get('EMERGENCY_ESCALATION_SECRET');
   const supplied = req.headers.get('x-emergency-escalation-secret');

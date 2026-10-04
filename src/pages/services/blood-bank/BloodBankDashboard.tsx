@@ -10,7 +10,6 @@ import { useEffect, useState } from 'react';
 import { IoWaterOutline, IoMegaphoneOutline, IoPeopleOutline } from 'react-icons/io5';
 import { BloodOfferInbox } from '@/components/blood/BloodOfferInbox';
 import { BloodBankCommitmentInbox } from '@/components/blood/BloodBankCommitmentInbox';
-import { BloodBankCommitmentInbox } from '@/components/blood/BloodBankCommitmentInbox';
 import { useBloodInventory, useBloodRequests, useCreateBloodRequest, useMyBank } from '@/hooks/queries/useBloodQueries';
 import { HospitalBloodRequisitions } from '@/components/blood/HospitalBloodRequisitions';
 import { bloodService } from '@/services/blood.service';
@@ -50,7 +49,6 @@ export default function BloodBankDashboard() {
       <div className="grid gap-4 lg:grid-cols-2">
         {bank && <BloodOfferInbox bankId={bank.id} />}
         {bank && <BloodBankCommitmentInbox bankId={bank.id} />}
-        {bank && <BloodBankCommitmentInbox bankId={bank.id} />}
         {bank && (
           <Card>
             <CardHeader title="Inventory" subtitle="Tap a cell to adjust stock (audited)" />
@@ -64,7 +62,7 @@ export default function BloodBankDashboard() {
                     if (next == null) return;
                     const units = Number.parseInt(next, 10);
                     if (Number.isNaN(units) || units < 0) return toast('error', 'Enter a valid number');
-                    upsert.mutate([{ bank_id: bank.id, blood_group: bg, units_available: units, units_reserved: row?.units_reserved ?? 0 }]);
+                    upsert.mutate([{ bank_id: bank.id, blood_group: bg, units_available: units }]);
                   }}
                     className={cn('rounded-xl border p-3 text-center transition-colors',
                       low ? 'border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950' : 'border-slate-200 dark:border-white/10')}>

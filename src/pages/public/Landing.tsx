@@ -4,8 +4,8 @@ import {
   IoMedkitOutline, IoShieldCheckmarkOutline, IoPulseOutline, IoPeopleOutline,
   IoMenuOutline, IoCloseOutline, IoBusinessOutline, IoWaterOutline, IoBodyOutline,
   IoVideocamOutline, IoChevronForwardOutline, IoCalendarOutline, IoDocumentTextOutline,
-  IoSearchOutline, IoLocationOutline, IoHeartOutline, IoChatbubbleEllipsesOutline,
-  IoFlaskOutline, IoMedicalOutline, IoCarOutline, IoWarningOutline, IoSparklesOutline,
+  IoSearchOutline, IoLocationOutline, IoHeartOutline, IoMedicalOutline, IoCarOutline,
+  IoWarningOutline, IoSparklesOutline, IoBedOutline,
   IoCheckmarkCircleOutline, IoArrowForwardOutline, IoLockClosedOutline,
   IoStatsChartOutline, IoGlobeOutline,
 } from 'react-icons/io5';

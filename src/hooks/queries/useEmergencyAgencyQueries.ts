@@ -40,7 +40,10 @@ export function useEmergencyAgencyDispatches(emergencyId: string | undefined) {
   const qc = useQueryClient();
   const query = useQuery({
     queryKey: ['emergency-agency-dispatches', emergencyId],
-    queryFn: () => emergencyAgencyService.operatorDispatches(emergencyId!),
+    queryFn: async () => {
+      await emergencyAgencyService.escalate(emergencyId!);
+      return emergencyAgencyService.operatorDispatches(emergencyId!);
+    },
     enabled: !!emergencyId,
     staleTime: 3_000,
     refetchInterval: 10_000,
@@ -87,6 +90,20 @@ export function useEmergencyAgencyDispatchAction() {
       void qc.invalidateQueries({ queryKey: ['my-emergency-agency-dispatches'] });
     },
     onError: (e) => toast('error', e instanceof Error ? e.message : 'Unable to update agency dispatch'),
+  });
+}
+
+export function useEmergencyAgencyCancelAction() {
+  const toast = useUiStore((s) => s.toast);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { dispatchId: string; emergencyId: string }) =>
+      emergencyAgencyService.updateStatus(input.dispatchId, input.emergencyId, 'cancelled'),
+    onSuccess: (_row, input) => {
+      toast('success', 'Agency dispatch cancelled.');
+      void qc.invalidateQueries({ queryKey: ['emergency-agency-dispatches', input.emergencyId] });
+    },
+    onError: (e) => toast('error', e instanceof Error ? e.message : 'Unable to cancel agency dispatch'),
   });
 }
 

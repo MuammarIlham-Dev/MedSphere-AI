@@ -2,18 +2,16 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createClient } from '@supabase/supabase-js';
 import postgres from 'postgres';
 
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL as string;
-const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY as string;
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL as string | undefined;
+const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+const SUPABASE_DB_URL = process.env.SUPABASE_DB_URL;
+const sql = SUPABASE_DB_URL ? postgres(SUPABASE_DB_URL, { ssl: 'require' }) : null;
 
-// Direct DB connection for fixtures since we don't have service_role_key in this environment
-// SECURITY: Using environment variable for database connection
-const DB_URL = process.env.SUPABASE_DB_URL || process.env.VITE_SUPABASE_DB_URL;
-if (!DB_URL) {
-  throw new Error('SUPABASE_DB_URL environment variable is required for integration tests');
-}
-const sql = postgres(DB_URL, { ssl: 'require' });
+const integrationEnabled = Boolean(
+  SUPABASE_URL && SUPABASE_ANON_KEY && SUPABASE_DB_URL
+);
 
-describe('Doctor Tier Database Integration with Fixtures', () => {
+describe.skipIf(!integrationEnabled)('Doctor Tier Database Integration with Fixtures', () => {
 
   const testPatientUserId = '11111111-2222-3333-4444-555555555555';
   let testPatientId: string;
@@ -222,7 +220,7 @@ describe('Doctor Tier Database Integration with Fixtures', () => {
         // But since we can't easily sign in the testPatientUserId, we can test the function via SQL directly
         await sql.begin(async (tx) => {
           await tx`SET LOCAL ROLE authenticated`;
-          await tx`SELECT set_config('request.jwt.claims', ${JSON.stringify({ sub: testPatientUserId })}, true)`;
+          await tx`SELECT set_config('request.jwt.claims', ${JSON.stringify({ sub: testPatientUserId, role: 'authenticated', aud: 'authenticated' })}, true)`;
           
           await tx`
             SELECT book_appointment(
@@ -362,7 +360,7 @@ describe('Doctor Tier Database Integration with Fixtures', () => {
       try {
         await sql.begin(async (tx) => {
           await tx`SET LOCAL ROLE authenticated`;
-          await tx`SELECT set_config('request.jwt.claims', ${JSON.stringify({ sub: testDoctorUserId })}, true)`;
+          await tx`SELECT set_config('request.jwt.claims', ${JSON.stringify({ sub: testDoctorUserId, role: 'authenticated', aud: 'authenticated' })}, true)`;
           
           const rxItems = [
             { medicine_id: null, dosage: '1x', frequency: 'daily', duration_days: 'invalid_int', instructions: '' }

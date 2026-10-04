@@ -220,7 +220,7 @@ begin
   if caller_doctor is null then raise exception 'verified doctor required'; end if;
 
   select * into appt from public.appointments where id = p_appointment_id and doctor_id = caller_doctor for update;
-  if not found or appt.status not in ('confirmed', 'checked_in', 'in_progress', 'completed') then
+  if not found or appt.status not in ('confirmed', 'checked_in', 'in_progress') then
     raise exception 'an active treatment relationship is required';
   end if;
   if nullif(trim(p_title), '') is null then raise exception 'record title is required'; end if;
@@ -236,13 +236,19 @@ begin
     nullif(trim(p_notes), '')
   ) returning id into record_id;
 
-  if nullif(trim(p_prescription_notes), '') is not null or (p_prescription_items is not null and jsonb_array_length(p_prescription_items) > 0) then
+  if nullif(trim(p_prescription_notes), '') is not null or (p_prescription_items is not null and jsonb_typeof(p_prescription_items) = 'array' and jsonb_array_length(p_prescription_items) > 0) then
     insert into public.prescriptions (appointment_id, patient_id, doctor_id, notes)
     values (appt.id, appt.patient_id, caller_doctor, nullif(trim(p_prescription_notes), ''))
     returning id into rx_id;
 
-    if p_prescription_items is not null then
+    if p_prescription_items is not null and jsonb_typeof(p_prescription_items) = 'array' then
       for item in select * from jsonb_array_elements(p_prescription_items) loop
+        if nullif(trim(item->>'medicine_id'), '') is null then
+          raise exception 'prescription medicine_id is required';
+        end if;
+        if item->>'duration_days' is null or (item->>'duration_days')::int <= 0 then
+          raise exception 'prescription duration_days must be positive';
+        end if;
         insert into public.prescription_items (
           prescription_id, medicine_id, dosage, frequency, duration_days, instructions
         ) values (

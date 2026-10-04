@@ -8,6 +8,7 @@ import { IoShieldCheckmarkOutline, IoDocumentTextOutline } from 'react-icons/io5
 import { useAuditLog, usePendingDoctors, usePendingDoctorCredentials, useReviewDoctorCredential, useVerifyDoctor } from '@/hooks/queries/useAdminQueries';
 import { useUiStore } from '@/stores/uiStore';
 import { useRef } from 'react';
+import { supabase } from '@/lib/supabase';
 import { useReveal } from '@/lib/gsap';
 
 export default function AdminDashboard() {
@@ -39,7 +40,7 @@ export default function AdminDashboard() {
                   <p className="text-sm font-medium">{c.doctors?.profiles?.full_name ?? 'Doctor'} · {c.credential_type.replace('_', ' ')}</p>
                   <p className="text-xs text-slate-400">License {c.doctors?.license_no ?? '—'} · {c.document_number ? 'Document '+c.document_number+' · ' : ''}Submitted {formatDateTime(c.created_at)}</p>
                   {c.expires_at && <p className="text-xs text-slate-400">Expires {c.expires_at}</p>}
-                  {c.file?.path && <p className="break-all text-xs text-slate-500">Private file: {c.file.path}</p>}
+                  {c.file?.path && <Button size="sm" variant="secondary" onClick={async () => { const result = await supabase.storage.from(c.file.bucket).createSignedUrl(c.file.path, 300); if (result.error) toast('error', 'Could not open credential evidence'); else window.open(result.data.signedUrl, '_blank', 'noopener,noreferrer'); }}>View evidence</Button>}
                 </div>
                 <div className="flex gap-2">
                   <Button size="sm" variant="success" loading={reviewCredential.isPending} onClick={() => reviewCredential.mutate({ id: c.id, status: 'accepted' }, { onError: (e) => toast('error', e.message) })}>Accept evidence</Button>

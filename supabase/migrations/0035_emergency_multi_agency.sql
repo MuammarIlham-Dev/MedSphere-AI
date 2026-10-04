@@ -782,3 +782,58 @@ grant execute on function public.get_my_emergency_agency_response(uuid) to authe
 
 
 grant execute on function public.escalate_expired_emergency_agency_dispatches(uuid) to service_role;
+
+
+-- Controlled resolution for Fire/Police incidents that do not use the ambulance lifecycle.
+create or replace function public.resolve_non_ambulance_emergency(
+  p_emergency_id uuid
+) returns public.emergencies
+language plpgsql security definer set search_path = public as $$
+declare
+  e public.emergencies;
+  agency_type public.emergency_agency_type;
+  result public.emergencies;
+begin
+  if public.current_role() not in ('emergency_operator','admin','super_admin') then
+    raise exception 'Unauthorized emergency resolution access';
+  end if;
+
+  select * into e from public.emergencies where id=p_emergency_id for update;
+  if not found then raise exception 'Emergency not found'; end if;
+
+  if e.status <> 'active' or e.assigned_ambulance_id is not null then
+    raise exception 'Incident is using the ambulance lifecycle or is no longer active';
+  end if;
+
+  if e.type not in ('fire','police') then
+    raise exception 'Use the standard emergency lifecycle for this incident type';
+  end if;
+
+  foreach agency_type in array public.required_emergency_agency_types(e.type) loop
+    if not exists (
+      select 1
+      from public.emergency_agency_dispatches d
+      join public.emergency_agencies a on a.id=d.agency_id
+      where d.emergency_id=e.id
+        and a.agency_type=agency_type
+        and d.status='completed'
+    ) then
+      raise exception 'Required % response is not completed', agency_type;
+    end if;
+  end loop;
+
+  update public.emergencies
+  set status='resolved',
+      resolved_at=now(),
+      updated_at=now(),
+      log=coalesce(log,'[]'::jsonb) || jsonb_build_array(jsonb_build_object(
+        'at',now(),'event','status_resolved','by',auth.uid()
+      ))
+  where id=e.id
+  returning * into result;
+
+  return result;
+end $$;
+
+revoke all on function public.resolve_non_ambulance_emergency(uuid) from public;
+grant execute on function public.resolve_non_ambulance_emergency(uuid) to authenticated;

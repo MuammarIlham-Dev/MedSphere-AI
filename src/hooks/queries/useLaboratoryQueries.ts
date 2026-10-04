@@ -80,7 +80,7 @@ export function useCreateLabReport() {
   const qc = useQueryClient();
   const toast = useUiStore((s) => s.toast);
   return useMutation({
-    mutationFn: (input: { orderId: string; testId: string; result: Record<string, unknown>; file?: File | null }) =>
+    mutationFn: (input: { orderId: string; testId: string; result: import('@/types/laboratory').StructuredLabResult; file?: File | null }) =>
       laboratoryService.createReport(input),
     onSuccess: () => { invalidate(qc); toast('success', 'Laboratory report created'); },
     onError: (error: Error) => toast('error', error.message),

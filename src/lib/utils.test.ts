@@ -53,8 +53,7 @@ describe('utils', () => {
     });
 
     it('generates bookable slots correctly for a schedule', () => {
-      const targetDate = new Date();
-      targetDate.setHours(10, 0, 0, 0);
+      const targetDate = new Date('2026-10-04T10:00:00+06:00');
 
       const schedules = [
         {
@@ -87,10 +86,8 @@ describe('utils', () => {
       expect(slots[0]!.available).toBe(false);
 
       // Second slot is available (it's in the future and not taken)
-      const secondSlotStart = new Date(targetDate);
-      secondSlotStart.setMinutes(30);
-      const secondSlotEnd = new Date(targetDate);
-      secondSlotEnd.setHours(11, 0, 0, 0);
+      const secondSlotStart = new Date('2026-10-04T10:30:00+06:00');
+      const secondSlotEnd = new Date('2026-10-04T11:00:00+06:00');
 
       expect(slots[1]!.start).toBe(secondSlotStart.toISOString());
       expect(slots[1]!.end).toBe(secondSlotEnd.toISOString());
@@ -98,12 +95,10 @@ describe('utils', () => {
     });
 
     it('marks past slots as unavailable', () => {
-        const now = new Date();
-        now.setHours(10, 45, 0, 0);
-        vi.setSystemTime(now); // System time is after first slot
+        const now = new Date('2026-10-04T04:45:00.000Z');
+        vi.setSystemTime(now); // 10:45 Asia/Dhaka; first two slots are past
 
-        const targetDate = new Date(now);
-        targetDate.setHours(10, 0, 0, 0);
+        const targetDate = new Date('2026-10-04T10:00:00+06:00');
 
         const schedules = [
           {

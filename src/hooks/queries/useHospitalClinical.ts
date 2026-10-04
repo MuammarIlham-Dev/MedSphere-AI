@@ -16,7 +16,7 @@ export const useHospitalAppointmentQueue = (hospitalId?: string, includeVideo = 
     refetchInterval: 20_000,
   });
 
-const mutation = <TVariables,>(fn: (v: TVariables) => Promise<unknown>, hospitalId?: string) => {
+const useHospitalClinicalMutation = <TVariables,>(fn: (v: TVariables) => Promise<unknown>, hospitalId?: string) => {
   const qc = useQueryClient();
   const toast = useUiStore((s) => s.toast);
   return useMutation({
@@ -27,10 +27,10 @@ const mutation = <TVariables,>(fn: (v: TVariables) => Promise<unknown>, hospital
 };
 
 export const useHospitalConfirmAppointment = (hospitalId?: string) =>
-  mutation(({ appointmentId }: { appointmentId: string }) => hospitalClinicalService.confirm(appointmentId), hospitalId);
+  useHospitalClinicalMutation(({ appointmentId }: { appointmentId: string }) => hospitalClinicalService.confirm(appointmentId), hospitalId);
 
 export const useHospitalCheckIn = (hospitalId?: string) =>
-  mutation(({ appointmentId }: { appointmentId: string }) => hospitalClinicalService.checkIn(appointmentId), hospitalId);
+  useHospitalClinicalMutation(({ appointmentId }: { appointmentId: string }) => hospitalClinicalService.checkIn(appointmentId), hospitalId);
 
 export const useHospitalNoShow = (hospitalId?: string) =>
-  mutation(({ appointmentId, reason }: { appointmentId: string; reason?: string }) => hospitalClinicalService.noShow(appointmentId, reason), hospitalId);
+  useHospitalClinicalMutation(({ appointmentId, reason }: { appointmentId: string; reason?: string }) => hospitalClinicalService.noShow(appointmentId, reason), hospitalId);

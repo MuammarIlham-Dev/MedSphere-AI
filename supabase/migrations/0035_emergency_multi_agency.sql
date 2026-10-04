@@ -113,74 +113,27 @@ drop policy if exists emergency_agency_dispatches_write on public.emergency_agen
 
 select public.apply_updated_at('public.emergency_agencies');
 
--- Prevent self-service role elevation to an emergency responder.
+-- Prevent self-service role elevation during the migration window.
+-- Public signup is citizen-only; privileged role onboarding is administrator-controlled.
 create or replace function public.handle_new_user() returns trigger
-language plpgsql security definer set search_path = public as $$
-declare r public.app_role;
+language plpgsql
+security definer
+set search_path = public
+as $$
 begin
-  begin r := coalesce((new.raw_user_meta_data->>'role')::public.app_role, 'citizen'); 
-  exception when others then r := 'citizen'; end;
-  if r in ('admin','super_admin','emergency_responder') then r := 'citizen'; end if;
-
   insert into public.profiles (id, role, full_name, phone, digital_health_id)
   values (
     new.id,
-    r,
-    coalesce(new.raw_user_meta_data->>'full_name', split_part(new.email,'@',1)),
+    'citizen',
+    coalesce(new.raw_user_meta_data->>'full_name', split_part(coalesce(new.email,''), '@', 1)),
     new.phone,
     'MSH-' || upper(substr(replace(gen_random_uuid()::text,'-',''),1,10))
   );
   return new;
-end $$;
+end;
+$$;
 
--- Administrative provisioning only.
-create or replace function public.set_emergency_responder_role(
-  p_profile_id uuid,
-  p_enabled boolean
-) returns public.profiles
-language plpgsql security definer set search_path = public as $
-declare
-  result public.profiles;
-begin
-  if not public.is_admin() then raise exception 'Administrator access required'; end if;
-  if p_profile_id is null then raise exception 'Profile is required'; end if;
-
-  if exists (
-    select 1 from public.profiles
-    where id=p_profile_id and role in ('admin','super_admin')
-  ) then
-    raise exception 'Administrative profiles cannot be converted to responders';
-  end if;
-
-  if not p_enabled then
-    update public.emergency_agency_members
-    set is_active=false
-    where user_id=p_profile_id and is_active=true;
-
-    update public.emergency_agency_dispatches
-    set status='cancelled',
-        responded_at=coalesce(responded_at,now()),
-        completed_at=coalesce(completed_at,now())
-    where assigned_member_id=p_profile_id
-      and status in ('acknowledged','en_route','on_scene');
-
-    update public.profiles
-    set role='citizen'::public.app_role
-    where id=p_profile_id
-    returning * into result;
-  else
-    update public.profiles
-    set role='emergency_responder'::public.app_role
-    where id=p_profile_id
-    returning * into result;
-  end if;
-
-  if not found then raise exception 'Profile not found'; end if;
-  return result;
-end $;
-
-revoke all on function public.set_emergency_responder_role(uuid,boolean) from public;
-grant execute on function public.set_emergency_responder_role(uuid,boolean) to authenticated;
+-- Administrative provisioning functions are finalized in migration 0036.
 
 create or replace function public.set_emergency_agency_member(
   p_agency_id uuid,

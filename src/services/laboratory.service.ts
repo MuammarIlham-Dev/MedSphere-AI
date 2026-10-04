@@ -55,6 +55,8 @@ interface LabWorklistRow {
   report_code: string | null;
   report_file_id: string | null;
   report_authored_by: string | null;
+  report_version_no: number;
+  report_is_current: boolean;
 }
 
 export interface LabReportArchiveRow {
@@ -174,7 +176,7 @@ export const laboratoryService = {
   advanceSample: (itemId: string) =>
     unwrap(supabase.rpc('advance_lab_sample', { p_item_id: itemId })),
 
-  async createReport(input: { orderId: string; testId: string; result: Record<string, unknown>; file?: File | null }) {
+  async createReport(input: { orderId: string; testId: string; result: StructuredLabResult; file?: File | null }) {
     let uploaded: { fileId: string; path: string } | null = null;
     try {
       if (input.file) uploaded = await uploadReportDocument(input.file);

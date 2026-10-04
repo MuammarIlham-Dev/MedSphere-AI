@@ -16,8 +16,14 @@ export const bloodService = {
   allInventories: () => 
     unwrap<any[]>(supabase.from('blood_inventory').select('*, blood_banks(name, city, lat, lng)')),
 
-  upsertInventory: (rows: Array<Pick<BloodInventoryRow, 'bank_id' | 'blood_group' | 'units_available' | 'units_reserved'>>) =>
-    unwrap(supabase.from('blood_inventory').upsert(rows, { onConflict: 'bank_id,blood_group' }).select()),
+  upsertInventory: async (rows: Array<Pick<BloodInventoryRow, 'bank_id' | 'blood_group' | 'units_available'>>) =>
+    Promise.all(rows.map((row) =>
+      unwrap<BloodInventoryRow>(supabase.rpc('set_blood_inventory', {
+        p_bank_id: row.bank_id,
+        p_blood_group: row.blood_group,
+        p_units_available: row.units_available,
+      })),
+    )),
 
   publicRequests: () =>
     unwrap<BloodRequest[]>(supabase.rpc('get_public_blood_requests')),

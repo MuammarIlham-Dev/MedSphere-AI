@@ -24,6 +24,7 @@ export type AmbulanceStatus = 'available' | 'dispatched' | 'busy' | 'maintenance
 export interface Profile {
   id: string;
   role: Role;
+  requested_role: Role | null;
   full_name: string;
   phone: string | null;
   dob: string | null;

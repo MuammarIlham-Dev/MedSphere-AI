@@ -10,6 +10,9 @@ export interface LabReportSummary {
   created_at: string;
   test_name: string | null;
   file_id: string | null;
+  version_no: number;
+  is_current: boolean;
+  amendment_reason: string | null;
 }
 
 export interface EncounterContext {
@@ -115,7 +118,7 @@ export const ehrService = {
 
     const rows = await unwrap<Array<{ id: string; report_code: string; status: string; result_json: Record<string, unknown>; created_at: string; file_id: string | null; version_no: number; is_current: boolean; amendment_reason: string | null; lab_tests?: { name: string } | { name: string }[] }>>(
       supabase.from('lab_reports')
-        .select('id, report_code, status, result_json, created_at, file_id, lab_tests(name)')
+        .select('id, report_code, status, result_json, created_at, file_id, version_no, is_current, amendment_reason, lab_tests(name)')
         .in('order_id', orders.map((order) => order.id))
         .eq('is_current', true)
         .order('created_at', { ascending: false }),

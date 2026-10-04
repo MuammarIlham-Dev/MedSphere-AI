@@ -60,8 +60,12 @@ export default function LabDashboard() {
   const [staffDhi, setStaffDhi] = useState('');
   const [staffRole, setStaffRole] = useState('technologist');
   const [reportingItem, setReportingItem] = useState<string | null>(null);
-  const [reportJson, setReportJson] = useState('{\n  "result": ""\n}');
+  const [reportResult, setReportResult] = useState<StructuredLabResult>(createEmptyLabResult());
   const [reportFile, setReportFile] = useState<File | null>(null);
+  const [amendmentReportId, setAmendmentReportId] = useState<string | null>(null);
+  const [amendmentReason, setAmendmentReason] = useState('');
+  const [amendmentResult, setAmendmentResult] = useState<StructuredLabResult>(createEmptyLabResult());
+  const [amendmentFile, setAmendmentFile] = useState<File | null>(null);
 
   const { data: workspace } = useLaboratoryWorkspace();
   const laboratory = workspace ? { id: workspace.laboratory_id, name: workspace.laboratory_name } : null;
@@ -156,7 +160,7 @@ export default function LabDashboard() {
         <KpiCard label="Reports ready" value={stats.reportsReady} icon={<IoDocumentTextOutline className="h-5 w-5 text-brand-500" />} />
       </div>
 
-      {workspace?.staff_role === 'manager' && (
+      {workspace?.staff_role === 'manager' && laboratory && (
         <Card className="mb-6">
           <CardHeader title="Laboratory team & quality control" subtitle="Add laboratory accounts as technologists, reviewers, or managers. A reviewer cannot verify or publish a report they authored." />
           <div className="p-5">

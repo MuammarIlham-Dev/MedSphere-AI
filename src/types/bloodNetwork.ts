@@ -29,7 +29,6 @@ export interface BloodBroadcastResponse {
   status: BloodBroadcastResponseStatus;
   responded_at: string;
   confirmed_at: string | null;
-  units?: number;
   hospital_name: string;
   hospital_city: string | null;
   hospital_address: string | null;

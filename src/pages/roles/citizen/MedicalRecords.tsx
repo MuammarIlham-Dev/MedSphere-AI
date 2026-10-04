@@ -21,7 +21,7 @@ export function MedicalRecords() {
   const { data: prescriptions, isLoading: loadingPrescriptions } = useMyPrescriptions();
   const [historyReportId, setHistoryReportId] = useState<string | null>(null);
   const [versionHistoryReportId, setVersionHistoryReportId] = useState<string | null>(null);
-  const versionHistory = useLabReportHistory(versionHistoryReportId);
+  const versionHistory = useLabReportHistory(versionHistoryReportId ?? undefined);
   const history = useQuery({
     queryKey: ['lab-report-access-history', historyReportId],
     queryFn: () => ehrService.labReportAccessHistory(historyReportId!),

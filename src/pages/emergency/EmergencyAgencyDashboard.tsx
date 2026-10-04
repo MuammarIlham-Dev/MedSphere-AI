@@ -31,8 +31,8 @@ export default function EmergencyAgencyDashboard() {
     toast('error', 'Unable to load your verified emergency agency membership.');
   }, [agencies.isError, toast]);
 
-  const offered = (dispatches.data ?? []).filter((d) => d.dispatch_status === 'offered');
-  const active = (dispatches.data ?? []).filter((d) => ['acknowledged','en_route','on_scene'].includes(d.dispatch_status));
+  const offered = (dispatches.data ?? []).filter((d) => d.status === 'offered');
+  const active = (dispatches.data ?? []).filter((d) => ['acknowledged','en_route','on_scene'].includes(d.status));
 
   return (
     <PageTransition>
@@ -111,20 +111,20 @@ export default function EmergencyAgencyDashboard() {
                     <p className="font-bold">{agencyLabel(d.agency_type)} · {d.emergency_type}</p>
                     <p className="text-xs text-muted-foreground">SOS-{d.emergency_id.slice(0,6).toUpperCase()} · {formatDateTime(d.requested_at)}</p>
                   </div>
-                  <Badge tone={d.dispatch_status === 'on_scene' ? 'success' : 'info'}>{d.dispatch_status.replace('_',' ').toUpperCase()}</Badge>
+                  <Badge tone={d.status === 'on_scene' ? 'success' : 'info'}>{d.status.replace('_',' ').toUpperCase()}</Badge>
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  {d.dispatch_status === 'acknowledged' && (
+                  {d.status === 'acknowledged' && (
                     <Button loading={statusAction.isPending} onClick={() => statusAction.mutate({ dispatchId:d.dispatch_id, emergencyId:d.emergency_id, status:'en_route' })}>
                       <IoNavigateOutline className="mr-2" /> En route
                     </Button>
                   )}
-                  {d.dispatch_status === 'en_route' && (
+                  {d.status === 'en_route' && (
                     <Button loading={statusAction.isPending} onClick={() => statusAction.mutate({ dispatchId:d.dispatch_id, emergencyId:d.emergency_id, status:'on_scene' })}>
                       <IoLocationOutline className="mr-2" /> On scene
                     </Button>
                   )}
-                  {d.dispatch_status === 'on_scene' && (
+                  {d.status === 'on_scene' && (
                     <Button loading={statusAction.isPending} onClick={() => statusAction.mutate({ dispatchId:d.dispatch_id, emergencyId:d.emergency_id, status:'completed' })}>
                       <IoCheckmarkCircleOutline className="mr-2" /> Complete response
                     </Button>

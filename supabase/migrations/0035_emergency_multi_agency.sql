@@ -653,39 +653,51 @@ declare
   operator_city text;
   incident_id uuid;
 begin
-  r:=public.current_role();
-  if r not in ('emergency_operator','admin','super_admin') then raise exception 'Unauthorized emergency operator feed access'; end if;
+  r := public.current_role();
+  if r not in ('emergency_operator','admin','super_admin') then
+    raise exception 'Unauthorized emergency operator feed access';
+  end if;
 
-  select city into operator_city from public.profiles where id=auth.uid();
+  select city into operator_city
+  from public.profiles
+  where id=auth.uid();
 
   if r in ('admin','super_admin') or (r='emergency_operator' and operator_city is null) then
     for incident_id in
-      select e.id from public.emergencies e
+      select e.id
+      from public.emergencies e
       where e.status in ('active','dispatched','on_scene','transporting','arrived')
-  else
-    for incident_id in
-      select e.id from public.emergencies e
-      where e.status in ('active','dispatched','on_scene','transporting','arrived')
-        and (operator_city is null or e.city=operator_city)
-  end loop;
+    loop
       begin
         perform public.escalate_expired_emergency_agency_dispatches(incident_id);
       exception when others then
-        -- A stale secondary-agency attempt must never block the core ambulance dispatch feed.
+        null;
+      end;
+    end loop;
+  else
+    for incident_id in
+      select e.id
+      from public.emergencies e
+      where e.status in ('active','dispatched','on_scene','transporting','arrived')
+        and e.city=operator_city
+    loop
+      begin
+        perform public.escalate_expired_emergency_agency_dispatches(incident_id);
+      exception when others then
         null;
       end;
     end loop;
   end if;
 
-  select city into operator_city from public.profiles where id=auth.uid();
-
   if r='emergency_operator' and operator_city is not null then
-    return query select e from public.emergencies e
+    return query
+      select e from public.emergencies e
       where e.status in ('active','dispatched','on_scene','transporting','arrived')
         and e.city=operator_city
       order by case when e.status='active' then 0 else 1 end,e.created_at asc;
   else
-    return query select e from public.emergencies e
+    return query
+      select e from public.emergencies e
       where e.status in ('active','dispatched','on_scene','transporting','arrived')
       order by case when e.status='active' then 0 else 1 end,e.created_at asc;
   end if;

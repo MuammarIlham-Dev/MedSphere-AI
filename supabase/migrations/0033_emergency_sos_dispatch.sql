@@ -659,3 +659,41 @@ $$;
 
 revoke all on function public.get_emergency_operator_feed() from public;
 grant execute on function public.get_emergency_operator_feed() to authenticated;
+
+
+create or replace function public.get_emergency_operator_dispatch(
+  p_emergency_id uuid
+) returns public.emergency_dispatches
+language plpgsql security definer set search_path = public as $$
+declare
+  r app_role;
+  operator_city text;
+  e public.emergencies;
+  result public.emergency_dispatches;
+begin
+  r := public.current_role();
+  if r not in ('emergency_operator','admin','super_admin') then
+    raise exception 'Unauthorized emergency dispatch access';
+  end if;
+
+  select * into e from public.emergencies where id=p_emergency_id;
+  if not found then raise exception 'Emergency not found'; end if;
+
+  select city into operator_city from public.profiles where id=auth.uid();
+  if r='emergency_operator' and operator_city is not null and e.city is not null and operator_city <> e.city then
+    raise exception 'Emergency is outside your dispatch region';
+  end if;
+
+  select d.* into result
+  from public.emergency_dispatches d
+  where d.emergency_id=e.id
+    and d.status in ('offered','accepted')
+  order by d.offered_at desc
+  limit 1;
+
+  return result;
+end;
+$$;
+
+revoke all on function public.get_emergency_operator_dispatch(uuid) from public;
+grant execute on function public.get_emergency_operator_dispatch(uuid) to authenticated;

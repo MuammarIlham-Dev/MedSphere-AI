@@ -88,6 +88,16 @@ export function useEmergencyDispatchCandidates(emergencyId: string | undefined) 
   });
 }
 
+export function useEmergencyCurrentDispatch(emergencyId: string | undefined) {
+  return useQuery({
+    queryKey: ['emergency-current-dispatch', emergencyId],
+    queryFn: () => emergencyService.getCurrentDispatch(emergencyId!),
+    enabled: !!emergencyId,
+    staleTime: 5_000,
+    refetchInterval: 10_000,
+  });
+}
+
 export function useMyAmbulance() {
   return useQuery({
     queryKey: ['my-ambulance'],

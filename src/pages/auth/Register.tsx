@@ -47,7 +47,7 @@ export default function Register() {
           <h1 className="text-xl font-semibold">Check your inbox</h1>
           <p className="mt-2 text-sm text-slate-500">
             We sent a confirmation link to your email.
-            {STAFF_ROLES.has(role) && ' After confirming, your professional profile will enter verification review by our admin team.'}
+            {STAFF_ROLES.has(role) && ' After confirming, your professional access request will be retained for administrative onboarding; operational access remains disabled until provisioned.'}
           </p>
           <Button className="mt-6" onClick={() => navigate('/login')}>Back to sign in</Button>
         </Card>
@@ -75,7 +75,7 @@ export default function Register() {
           </Select>
           {STAFF_ROLES.has(role) && (
             <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-700 dark:bg-amber-950 dark:text-amber-300">
-              Professional accounts require document verification before platform access is granted.
+              Professional signup is a request only. Your account remains a citizen until an administrator provisions the requested operational role and completes verification.
             </p>
           )}
           <Turnstile onVerify={setCaptcha} />

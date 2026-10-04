@@ -25,6 +25,14 @@ export interface EmergencyAgency {
   updated_at: string;
 }
 
+export interface EmergencyAgencyMembership {
+  agency_id: string;
+  agency_name: string;
+  agency_type: EmergencyAgencyType;
+  city: string | null;
+  phone: string | null;
+}
+
 export interface EmergencyAgencyDispatch {
   id: string;
   emergency_id: string;
@@ -42,9 +50,19 @@ export interface EmergencyAgencyDispatch {
   created_at: string;
 }
 
-export interface EmergencyAgencyDispatchView extends EmergencyAgencyDispatch {
+export interface EmergencyAgencyDispatchView {
+  dispatch_id: string;
+  emergency_id: string;
+  agency_id: string;
   agency_name: string;
   agency_type: EmergencyAgencyType;
+  status: EmergencyAgencyDispatchStatus;
+  priority: 'low' | 'normal' | 'high' | 'critical';
+  distance_km: number | null;
+  requested_at: string;
+  expires_at: string;
+  responded_at: string | null;
+  assigned_member_id: string | null;
   emergency_type: string;
   emergency_status: import('@/types').EmergencyStatus;
   emergency_lat: number;

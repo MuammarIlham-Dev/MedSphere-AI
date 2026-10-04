@@ -174,10 +174,10 @@ DECLARE
   a public.appointments%rowtype;
   d public.doctors%rowtype;
 BEGIN
-  SELECT s.* INTO s
-    FROM public.telemedicine_sessions s
-    JOIN public.appointments a0 ON a0.id = s.appointment_id
-    WHERE s.id = p_session_id
+  SELECT ts.* INTO s
+    FROM public.telemedicine_sessions ts
+    JOIN public.appointments a0 ON a0.id = ts.appointment_id
+    WHERE ts.id = p_session_id
       AND (a0.patient_id = auth.uid() OR a0.doctor_id = (select id from public.doctors where profile_id = auth.uid()))
     FOR UPDATE;
 
@@ -245,12 +245,12 @@ DECLARE
   s public.telemedicine_sessions%rowtype;
   a public.appointments%rowtype;
 BEGIN
-  SELECT s.* INTO s
-    FROM public.telemedicine_sessions s
-    JOIN public.appointments a0 ON a0.id = s.appointment_id
-   WHERE s.id = p_session_id
+  SELECT ts.* INTO s
+    FROM public.telemedicine_sessions ts
+    JOIN public.appointments a0 ON a0.id = ts.appointment_id
+   WHERE ts.id = p_session_id
      AND (a0.patient_id = auth.uid() OR a0.doctor_id = (select id from public.doctors where profile_id = auth.uid()))
-     AND s.status <> 'cancelled'
+     AND ts.status <> 'cancelled'
    FOR UPDATE;
 
   IF NOT FOUND OR s.status = 'ended' THEN
@@ -286,10 +286,10 @@ DECLARE
   s public.telemedicine_sessions%rowtype;
   a public.appointments%rowtype;
 BEGIN
-  SELECT s.* INTO s
-    FROM public.telemedicine_sessions s
-    JOIN public.appointments a0 ON a0.id = s.appointment_id
-   WHERE s.id = p_session_id
+  SELECT ts.* INTO s
+    FROM public.telemedicine_sessions ts
+    JOIN public.appointments a0 ON a0.id = ts.appointment_id
+   WHERE ts.id = p_session_id
      AND (a0.patient_id = auth.uid() OR a0.doctor_id = (select id from public.doctors where profile_id = auth.uid()))
    FOR UPDATE;
 
@@ -327,10 +327,10 @@ DECLARE
   a public.appointments%rowtype;
   d public.doctors%rowtype;
 BEGIN
-  SELECT s.* INTO s
-    FROM public.telemedicine_sessions s
-    JOIN public.appointments a0 ON a0.id = s.appointment_id
-   WHERE s.id = p_session_id
+  SELECT ts.* INTO s
+    FROM public.telemedicine_sessions ts
+    JOIN public.appointments a0 ON a0.id = ts.appointment_id
+   WHERE ts.id = p_session_id
      AND a0.doctor_id = (select id from public.doctors where profile_id = auth.uid())
    FOR UPDATE;
 

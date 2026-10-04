@@ -177,7 +177,8 @@ begin
 
   if not found then raise exception 'Profile not found'; end if;
   return result;
-end $;
+end;
+$;
 
 revoke all on function public.set_emergency_responder_role(uuid,boolean) from public;
 grant execute on function public.set_emergency_responder_role(uuid,boolean) to authenticated;

@@ -21,6 +21,12 @@ ALTER TABLE public.doctors
   ADD COLUMN IF NOT EXISTS verification_reason text,
   ADD COLUMN IF NOT EXISTS verification_due_at timestamptz;
 
+-- Give already-verified accounts a migration grace period to submit evidence.
+UPDATE public.doctors
+   SET verification_due_at = now() + interval '90 days'
+ WHERE verification = 'verified'
+   AND verification_due_at IS NULL;
+
 CREATE TABLE public.doctor_credentials (
   id uuid primary key default gen_random_uuid(),
   doctor_id uuid not null references public.doctors(id) on delete cascade,
@@ -61,17 +67,7 @@ CREATE POLICY doctor_credentials_read
     or public.is_admin()
   );
 
-CREATE POLICY doctor_credentials_insert
-  ON public.doctor_credentials
-  FOR INSERT
-  WITH CHECK (
-    exists (
-      select 1 from public.doctors d
-      where d.id = doctor_id and d.profile_id = auth.uid()
-    )
-  );
-
--- No direct update/delete policy: review and lifecycle changes are RPC-only.
+-- No direct insert/update/delete policy: credential lifecycle changes are RPC-only.
 
 CREATE OR REPLACE FUNCTION public.protect_doctor_fields()
 RETURNS trigger
@@ -134,23 +130,25 @@ LANGUAGE sql
 STABLE
 SECURITY DEFINER
 SET search_path = public
-AS $$
+AS $
   SELECT EXISTS (
     SELECT 1
     FROM public.doctors d
     WHERE d.id = p_doctor_id
       AND d.verification = 'verified'
-      AND (d.verification_due_at IS NULL OR d.verification_due_at > now())
-      AND EXISTS (
-        SELECT 1
-        FROM public.doctor_credentials c
-        WHERE c.doctor_id = d.id
-          AND c.credential_type = 'medical_license'
-          AND c.status = 'accepted'
-          AND (c.expires_at IS NULL OR c.expires_at >= current_date)
+      AND (
+        (d.verification_due_at IS NOT NULL AND d.verification_due_at > now())
+        OR EXISTS (
+          SELECT 1
+          FROM public.doctor_credentials c
+          WHERE c.doctor_id = d.id
+            AND c.credential_type = 'medical_license'
+            AND c.status = 'accepted'
+            AND (c.expires_at IS NULL OR c.expires_at >= current_date)
+        )
       )
   );
-$$;
+$;
 
 CREATE OR REPLACE FUNCTION public.submit_doctor_credential(
   p_credential_type public.doctor_credential_type,
@@ -546,3 +544,25 @@ BEGIN
   RETURN result;
 END;
 $$;
+
+
+-- Public doctor discovery must hide doctors whose verification window has expired.
+DROP POLICY IF EXISTS doctors_read ON public.doctors;
+CREATE POLICY doctors_read ON public.doctors
+  FOR SELECT USING (
+    (
+      verification = 'verified'
+      AND (
+        (verification_due_at IS NOT NULL AND verification_due_at > now())
+        OR EXISTS (
+          SELECT 1 FROM public.doctor_credentials c
+          WHERE c.doctor_id = id
+            AND c.credential_type = 'medical_license'
+            AND c.status = 'accepted'
+            AND (c.expires_at IS NULL OR c.expires_at >= current_date)
+        )
+      )
+    )
+    OR profile_id = auth.uid()
+    OR public.is_admin()
+  );

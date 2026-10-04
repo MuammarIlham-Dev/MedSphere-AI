@@ -1,7 +1,8 @@
 import { supabase } from '@/lib/supabase';
 import { unwrap } from '@/lib/api';
 import { publishBloodRealtime } from '@/services/bloodRealtime.service';
-import type { BloodBroadcast, BloodBroadcastResponse, HospitalBloodBroadcast, HospitalBloodBroadcastResponse, BloodBroadcastMode, BloodGroup, Urgency } from '@/types/bloodNetwork';
+import type { BloodBroadcast, BloodBroadcastResponse, HospitalBloodBroadcast, HospitalBloodBroadcastResponse, BloodBroadcastMode } from '@/types/bloodNetwork';
+import type { BloodGroup, Urgency } from '@/types';
 import type { BloodRequest } from '@/types';
 
 export const bloodBroadcastService = {

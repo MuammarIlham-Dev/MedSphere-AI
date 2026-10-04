@@ -7,8 +7,10 @@ import { useUiStore } from '@/stores/uiStore';
 
 export function useSOS() {
   const toast = useUiStore((s) => s.toast);
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: emergencyService.triggerSOS,
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['emergency', 'active'] }); },
     onError: (e) => toast('error', e instanceof Error ? e.message : 'SOS failed — call local emergency number'),
   });
 }
@@ -134,6 +136,7 @@ export function useDispatchNearest() {
     onSuccess: (_d, emergencyId) => {
       toast('success', 'Nearest available ambulance offered to the driver.');
       void qc.invalidateQueries({ queryKey: ['active-emergencies'] });
+      void qc.invalidateQueries({ queryKey: ['emergency-current-dispatch', emergencyId] });
       void qc.invalidateQueries({ queryKey: ['emergency-dispatch-candidates', emergencyId] });
     },
     onError: (e) => toast('error', e instanceof Error ? e.message : 'Dispatch failed'),

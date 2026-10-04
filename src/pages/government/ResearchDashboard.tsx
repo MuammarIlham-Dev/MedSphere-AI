@@ -144,7 +144,7 @@ export default function ResearchDashboard() {
             <Card>
               <CardHeader
                 title="Cohort Explorer"
-                subtitle="Differentially-private query engine (k-anonymity enforced)"
+                subtitle="k-anonymous aggregate query engine — minimum cohort size 5"
                 action={<IoShieldCheckmarkOutline className="w-6 h-6 text-emerald-500" title="Privacy Enforced" />}
               />
               <div className="p-5 border-b border-slate-100 dark:border-white/5">
@@ -160,8 +160,8 @@ export default function ResearchDashboard() {
                     </select>
                   </div>
                   <div className="flex-1">
-                    <label className="block text-sm font-medium mb-1">Region (Optional)</label>
-                    <Input value={regionFilter} onChange={e => { setRegionFilter(e.target.value); }} placeholder="e.g. dhaka" />
+                    <label className="block text-sm font-medium mb-1">Region (authorized scope)</label>
+                    <Input value={regionFilter} onChange={e => { setRegionFilter(e.target.value); }} placeholder="Assigned study region" />
                   </div>
                   <div className="flex-1">
                     <label className="block text-sm font-medium mb-1">Diagnosis (Optional)</label>
@@ -181,7 +181,7 @@ export default function ResearchDashboard() {
                   <div className="flex justify-center items-center h-40"><Skeleton className="h-32 w-full max-w-md" /></div>
                 )}
                 {activeQuery && !loadingCohort && (!cohortData || cohortData.length === 0) && (
-                  <EmptyState title="No results or suppressed" hint="Cohorts smaller than 5 individuals are automatically masked to preserve k-anonymity." />
+                  <EmptyState title="No results or suppressed" hint="Groups smaller than 5 distinct patients are suppressed. Results are limited to the study and residency scope authorized by the server." />
                 )}
                 {activeQuery && cohortData && cohortData.length > 0 && (
                   <div className="space-y-6">

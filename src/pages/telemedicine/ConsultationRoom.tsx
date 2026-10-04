@@ -61,6 +61,7 @@ function CallInterface({ context }: { context: TelemedicineJoinContext }) {
   const [finished, setFinished] = useState(false);
   const { messages, send, typing, signalTyping, markRead, readBy } = useChat(conversationId);
   const chatScrollRef = useRef<HTMLDivElement>(null);
+  const finalizedRef = useRef(false);
 
   useEffect(() => {
     if (!context.sessionId) return;
@@ -108,6 +109,7 @@ function CallInterface({ context }: { context: TelemedicineJoinContext }) {
   const endConsultation = async () => {
     if (context.role !== 'doctor' || finished) return;
     setFinished(true);
+    finalizedRef.current = true;
     await telemedicineService.end(context.sessionId);
     await callObject?.leave();
     callObject?.destroy();

@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 vi.mock('@/lib/supabase', () => ({
   supabase: {
     from: vi.fn(),
+    rpc: vi.fn(),
     auth: {
       getUser: vi.fn(),
     }
@@ -28,7 +29,7 @@ describe('blood.service', () => {
     expect(mockUpsert).toHaveBeenCalledWith({
       profile_id: 'u1',
       blood_group: 'A+',
-      is_eligible: true
+      is_available: true
     }, { onConflict: 'profile_id' });
   });
 

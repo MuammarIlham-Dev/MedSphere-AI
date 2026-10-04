@@ -10,6 +10,7 @@ alter table public.emergencies
   add column if not exists updated_at timestamptz not null default now();
 
 -- Existing trigger helper is already present from the core schema.
+drop trigger if exists trg_updated_at on public.emergencies;
 select public.apply_updated_at('public.emergencies');
 
 create index if not exists emergencies_status_city_idx
@@ -192,6 +193,10 @@ begin
     raise exception 'Emergency is no longer dispatchable';
   end if;
 
+  if e.type not in ('medical','accident','other') then
+    raise exception 'This emergency type requires a connected non-ambulance agency';
+  end if;
+
   return query
   select
     a.id,
@@ -261,6 +266,10 @@ begin
 
   if e.status <> 'active' then
     raise exception 'Emergency is not awaiting initial dispatch';
+  end if;
+
+  if e.type not in ('medical','accident','other') then
+    raise exception 'This emergency type requires a connected non-ambulance agency';
   end if;
 
   if exists (

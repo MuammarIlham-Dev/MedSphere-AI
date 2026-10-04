@@ -47,9 +47,6 @@ importers:
       lucide-react:
         specifier: ^1.49.0
         version: 1.50.0(@types/react@19.3.0)(react@19.3.0)
-      postgres:
-        specifier: ^3.4.9
-        version: 3.4.9
       react:
         specifier: ^19.0.0
         version: 19.3.0
@@ -117,6 +114,9 @@ importers:
       prettier:
         specifier: ^3.4.2
         version: 3.9.9
+      postgres:
+        specifier: ^3.4.9
+        version: 3.4.9
       tailwindcss:
         specifier: ^3.4.17
         version: 3.4.19

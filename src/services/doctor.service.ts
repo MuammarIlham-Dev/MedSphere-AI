@@ -1,15 +1,14 @@
 import { supabase } from '@/lib/supabase';
-import { unwrap } from '@/lib/api';
+import { ApiError, unwrap } from '@/lib/api';
 export interface TimeSlot { start: string; end: string; type: 'video' | 'clinic'; available: boolean; }
 
 import { generateSlots } from '@/lib/utils';
 
-import type { DoctorCard, DoctorCredential, DoctorSearchFilters, DoctorSchedule } from '@/types';
-import { ApiError } from '@/lib/api';
+import type { Doctor, DoctorCard, DoctorCredential, DoctorSearchFilters, DoctorSchedule } from '@/types';
 
 export const doctorService = {
-  async getMyDoctor(profileId: string) {
-    return unwrap<{ id: string; verification: string; specialty: string; rating_avg: number; rating_count: number; [key: string]: unknown } | null>(
+  async getMyDoctor(profileId: string): Promise<Doctor | null> {
+    return unwrap<Doctor | null>(
       supabase.from('doctors').select('*').eq('profile_id', profileId).maybeSingle()
     );
   },

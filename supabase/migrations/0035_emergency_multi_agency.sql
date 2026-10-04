@@ -1,21 +1,6 @@
 -- Migration 0035: Emergency multi-agency response and escalation
 -- Depends on 0034 for the emergency_responder role and agency enums.
 
-do $$
-begin
-  create type public.emergency_agency_type as enum ('ems','fire','police','rescue');
-exception when duplicate_object then null;
-end $$;
-
-do $$
-begin
-  create type public.emergency_agency_dispatch_status as enum (
-    'offered','acknowledged','en_route','on_scene','completed',
-    'declined','timed_out','cancelled'
-  );
-exception when duplicate_object then null;
-end $$;
-
 create table if not exists public.emergency_agencies (
   id uuid primary key default gen_random_uuid(),
   name text not null,
@@ -671,11 +656,18 @@ begin
   r:=public.current_role();
   if r not in ('emergency_operator','admin','super_admin') then raise exception 'Unauthorized emergency operator feed access'; end if;
 
-  if r in ('emergency_operator','admin','super_admin') then
+  select city into operator_city from public.profiles where id=auth.uid();
+
+  if r in ('admin','super_admin') or (r='emergency_operator' and operator_city is null) then
     for incident_id in
       select e.id from public.emergencies e
       where e.status in ('active','dispatched','on_scene','transporting','arrived')
-    loop
+  else
+    for incident_id in
+      select e.id from public.emergencies e
+      where e.status in ('active','dispatched','on_scene','transporting','arrived')
+        and (operator_city is null or e.city=operator_city)
+  end loop;
       begin
         perform public.escalate_expired_emergency_agency_dispatches(incident_id);
       exception when others then

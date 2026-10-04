@@ -13,6 +13,11 @@ import {
   useDispatchNearest,
   useCancelEmergencyDispatch,
 } from '@/hooks/queries/useEmergencyQueries';
+import {
+  useEmergencyAgencyDispatches,
+  useDispatchRequiredEmergencyAgencies,
+  useEmergencyAgencyCancelAction,
+} from '@/hooks/queries/useEmergencyAgencyQueries';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { emergencyService } from '@/services/emergency.service';
 import { formatDateTime } from '@/lib/utils';
@@ -65,8 +70,11 @@ export default function EmergencyDashboard() {
   const selected = emergencies?.find((e) => e.id === selectedId);
   const candidates = useEmergencyDispatchCandidates(selectedId);
   const currentDispatch = useEmergencyCurrentDispatch(selectedId);
+  const agencyDispatches = useEmergencyAgencyDispatches(selectedId);
   const dispatchNearest = useDispatchNearest();
+  const dispatchAgencies = useDispatchRequiredEmergencyAgencies();
   const cancelDispatch = useCancelEmergencyDispatch();
+  const cancelAgencyDispatch = useEmergencyAgencyCancelAction();
   const statusAction = useEmergencyStatusAction();
 
   return (
@@ -145,6 +153,61 @@ export default function EmergencyDashboard() {
               </div>
 
               {currentDispatch.isLoading && <Skeleton className="h-20 w-full" />}
+              {agencyDispatches.isLoading && <Skeleton className="h-28 w-full" />}
+
+              {selected.status === 'active' && (
+                <div className="rounded-2xl border border-slate-200 p-4 dark:border-white/10">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-semibold">Multi-agency response</p>
+                      <p className="text-xs text-muted-foreground">Fire, Police, Rescue and EMS agency routing is independent from the ambulance dispatch.</p>
+                    </div>
+                    <Button
+                      loading={dispatchAgencies.isPending}
+                      onClick={() => dispatchAgencies.mutate(selected.id)}
+                    >
+                      Dispatch required services
+                    </Button>
+                  </div>
+
+                  <div className="mt-3 space-y-2">
+                    {!agencyDispatches.isLoading && (agencyDispatches.data?.length ?? 0) === 0 && (
+                      <p className="text-sm text-muted-foreground">No agency dispatch record yet.</p>
+                    )}
+                    {agencyDispatches.data?.map((d) => (
+                      <div key={d.dispatch_id} className="rounded-xl border border-slate-200 p-3 dark:border-white/10">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold">{d.agency_name}</p>
+                            <p className="text-xs capitalize text-muted-foreground">{d.agency_type} · {d.distance_km != null ? d.distance_km.toFixed(1) + ' km' : 'distance unknown'}</p>
+                          </div>
+                          <Badge tone={
+                            ['acknowledged','en_route','on_scene','completed'].includes(d.status) ? 'success'
+                              : d.status === 'declined' || d.status === 'timed_out' ? 'warning'
+                              : d.status === 'cancelled' ? 'neutral'
+                              : 'info'
+                          }>
+                            {d.status.replace('_',' ').toUpperCase()}
+                          </Badge>
+                        </div>
+                        {d.status === 'offered' && (
+                          <div className="mt-2 flex items-center justify-between gap-3">
+                            <span className="text-[11px] text-muted-foreground">Offer expires {formatDateTime(d.expires_at)}</span>
+                            <Button
+                              variant="ghost"
+                              loading={cancelAgencyDispatch.isPending}
+                              onClick={() => cancelAgencyDispatch.mutate({ dispatchId:d.dispatch_id, emergencyId:selected.id })}
+                            >
+                              Cancel offer
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {currentDispatch.data && (
                 <div className="rounded-2xl border border-brand-200 p-4 dark:border-brand-900">
                   <div className="flex items-center justify-between gap-3">

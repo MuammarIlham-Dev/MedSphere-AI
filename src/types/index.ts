@@ -149,6 +149,12 @@ export interface MedicalRecord {
   notes: string | null;
   vitals: Record<string, string | number>;
   attachments: string[];
+  subjective_notes?: string | null;
+  objective_notes?: string | null;
+  assessment_notes?: string | null;
+  care_plan?: string | null;
+  follow_up_at?: string | null;
+  follow_up_instructions?: string | null;
   created_at: string;
 }
 

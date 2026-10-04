@@ -243,9 +243,11 @@ jobs:
 2. `supabase link --project-ref <ref>` → `supabase db push`.
 3. Auth providers: enable Email (confirm email ON), Google (OAuth client), Phone (Twilio/MessageBird). Enable TOTP MFA.
 4. Captcha: paste Turnstile **secret** into Supabase Auth → Bot protection.
-5. `supabase secrets set ABLY_API_KEY=...` → `supabase functions deploy ably-token`.
-6. Apply migrations in order through the latest migration (currently `0035_emergency_multi_agency.sql`).
-7. Storage buckets are created by the base migrations; confirm policies.
+5. `supabase secrets set ABLY_API_KEY=...`.
+6. Deploy realtime functions: `supabase functions deploy ably-token`, `supabase functions deploy blood-ably-token`, `supabase functions deploy blood-ably-event`, `supabase functions deploy emergency-ably-token`, `supabase functions deploy emergency-ably-event`, and `supabase functions deploy emergency-escalation`.
+7. Apply migrations in order through the latest migration (currently `0035_emergency_multi_agency.sql`).
+8. Set `EMERGENCY_ESCALATION_SECRET` and schedule the `emergency-escalation` function from a server-side scheduler at a short interval.
+9. Provision verified emergency agencies and responder membership through the administrator-only RPCs.
 
 **Ably** — Create app → restrict API key; no client-side key is ever used (token auth only).
 

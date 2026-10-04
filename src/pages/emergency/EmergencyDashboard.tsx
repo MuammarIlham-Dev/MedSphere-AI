@@ -13,7 +13,7 @@ import {
   useDispatchNearest,
   useCancelEmergencyDispatch,
 } from '@/hooks/queries/useEmergencyQueries';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { emergencyService } from '@/services/emergency.service';
 import { formatDateTime } from '@/lib/utils';
 import { emergencyChannel } from '@/lib/emergencyAbly';

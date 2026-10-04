@@ -350,8 +350,8 @@ BEGIN
   END IF;
 
   IF p_donor_target_count IS NOT NULL
-     AND (p_donor_target_count < 1 OR p_donor_target_count > p_units) THEN
-    RAISE EXCEPTION 'donor target must be between 1 and requested units';
+     AND (p_donor_target_count < 1 OR p_donor_target_count > 1000) THEN
+    RAISE EXCEPTION 'donor target must be between 1 and 1000';
   END IF;
 
   SELECT * INTO h

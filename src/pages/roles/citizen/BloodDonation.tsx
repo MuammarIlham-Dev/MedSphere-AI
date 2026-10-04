@@ -1,210 +1,66 @@
-import React, { useState } from 'react';
-import { useDonorProfile, useRegisterDonor, usePublicBloodRequests, useAllBloodInventories, useOfferBloodDonation } from '@/hooks/queries/useBloodQueries';
-import { useAuthStore } from '@/stores/authStore';
+import { useEffect, useState } from 'react';
+import { Droplet, Activity, HeartPulse } from 'lucide-react';
+import { useDonorProfile, useRegisterDonor, useAllBloodInventories } from '@/hooks/queries/useBloodQueries';
 import { Button } from '@/components/ui/Button';
-import { BloodGroup } from '@/types';
-import { Droplet, Activity, AlertCircle, Plus } from 'lucide-react';
-import { CreateRequestModal } from '@/components/blood/CreateRequestModal';
+import { Card, CardHeader } from '@/components/ui/Card';
+import { Badge } from '@/components/ui/Badge';
+import { BLOOD_GROUPS, type BloodGroup } from '@/types';
+import { BloodLifeSavingFeed } from '@/components/blood/BloodLifeSavingFeed';
 
 export default function BloodDonation() {
-  const user = useAuthStore(s => s.profile);
   const { data: profile, isLoading } = useDonorProfile();
   const { mutate: register, isPending: isRegistering } = useRegisterDonor();
-  const { data: requests, isLoading: isRequestsLoading } = usePublicBloodRequests();
-  const offerDonation = useOfferBloodDonation();
+  const { data: inventories } = useAllBloodInventories();
+  const [bloodGroup, setBloodGroup] = useState<BloodGroup | ''>('');
+  const [isAvailable, setIsAvailable] = useState(true);
+  const [now, setNow] = useState(Date.now());
 
-  const [bloodGroup, setBloodGroup] = useState<BloodGroup | ''>(profile?.blood_group || '');
-  const [isAvailable, setIsAvailable] = useState(profile?.is_available ?? true);
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  useEffect(() => {
+    if (!profile) return;
+    setBloodGroup(profile.blood_group);
+    setIsAvailable(profile.is_available);
+  }, [profile]);
 
-  if (isLoading) return <div className="p-8 text-center text-slate-400">Loading donor profile...</div>;
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
-  const handleRegister = () => {
-    if (!bloodGroup) return;
-    register({ blood_group: bloodGroup as BloodGroup, is_available: isAvailable });
-  };
-
-  // Timer logic
   const lastDonation = profile?.last_donation_at ? new Date(profile.last_donation_at) : null;
-  
-  let isEligible = true;
-  let daysUntilEligible = 0;
-  let nextEligibleDate = new Date();
-  
-  if (lastDonation) {
-    nextEligibleDate = new Date(lastDonation);
-    nextEligibleDate.setMonth(nextEligibleDate.getMonth() + 4);
-    isEligible = nextEligibleDate <= new Date();
-    if (!isEligible) {
-      daysUntilEligible = Math.ceil((nextEligibleDate.getTime() - new Date().getTime()) / (1000 * 3600 * 24));
-    }
-  }
+  const nextEligibleDate = lastDonation ? new Date(lastDonation) : null;
+  if (nextEligibleDate) nextEligibleDate.setMonth(nextEligibleDate.getMonth() + 4);
+  const eligible = !nextEligibleDate || nextEligibleDate.getTime() <= now;
+  const remaining = nextEligibleDate ? Math.max(0, nextEligibleDate.getTime() - now) : 0;
+  const totalSeconds = Math.floor(remaining / 1000);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
 
-  return (
-    <div className="max-w-4xl mx-auto space-y-8 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-100 flex items-center gap-3">
-            <Droplet className="w-8 h-8 text-rose-500" />
-            Blood Donation Network
-          </h1>
-          <p className="text-slate-400 mt-2">Manage your donor status and help save lives.</p>
-        </div>
+  if (isLoading) return <div className="p-8 text-center text-slate-400">Loading donor profile…</div>;
+
+  return <div className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6">
+    <div><h1 className="flex items-center gap-3 text-2xl font-bold sm:text-3xl"><Droplet className="h-8 w-8 text-rose-500"/>Blood Network</h1><p className="mt-1 text-sm text-slate-500">A verified hospital demand network designed for rapid donor response.</p></div>
+
+    <Card className={eligible && profile?.is_available ? 'border-emerald-200 dark:border-emerald-900' : 'border-amber-200 dark:border-amber-900'}>
+      <div className="grid gap-5 p-5 md:grid-cols-[1fr_auto] md:items-center">
+        <div><div className="flex flex-wrap items-center gap-2"><Badge tone={eligible ? 'success' : 'warning'}>{eligible ? 'ELIGIBLE NOW' : 'NOT ELIGIBLE'}</Badge>{profile?.is_available && eligible && <Badge tone="info">AVAILABLE FOR ALERTS</Badge>}</div><h2 className="mt-2 text-xl font-bold">{profile?.blood_group ?? 'Register as a donor'}</h2>{eligible?<p className="mt-1 text-sm text-slate-500">You can receive compatible blood broadcasts in your city when availability is enabled.</p>:<p className="mt-1 text-sm text-slate-500">Next eligibility countdown: <strong>{days}d {String(hours).padStart(2,'0')}:{String(minutes).padStart(2,'0')}:{String(seconds).padStart(2,'0')}</strong></p>}</div>
+        <label className="flex items-center gap-2 text-sm"><Activity className="h-5 w-5 text-emerald-500"/><span>Available</span><input type="checkbox" checked={isAvailable} disabled={!eligible || !profile} onChange={e=>setIsAvailable(e.target.checked)}/></label>
       </div>
+    </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Donor Status & Timer */}
-        <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
-          <h2 className="text-xl font-semibold text-slate-100 mb-6 flex items-center gap-2">
-            <Activity className="w-5 h-5 text-emerald-400" />
-            Your Eligibility
-          </h2>
-          
-          <div className="flex flex-col items-center justify-center p-6 bg-slate-900/50 rounded-lg border border-slate-700 mb-6">
-            <div className={`text-4xl font-bold ${isEligible ? 'text-emerald-400' : 'text-amber-400'} mb-2`}>
-              {isEligible ? 'Eligible Now' : `${daysUntilEligible} Days`}
-            </div>
-            <div className="text-slate-400 text-sm">
-              {isEligible ? 'You are ready to donate blood.' : `Until you are eligible to donate again (Wait 4 months).`}
-            </div>
-            {lastDonation && (
-              <div className="text-xs text-slate-500 mt-2">
-                Last donation was {lastDonation.toLocaleDateString()}
-              </div>
-            )}
-          </div>
+    <Card><CardHeader title="Donor registration" subtitle="Your blood group and availability control whether life-saving broadcasts reach you."/><div className="grid gap-4 p-5 sm:grid-cols-[1fr_auto] sm:items-end">
+      <label className="text-sm font-medium">Blood group<select className="mt-1 w-full rounded-xl border border-slate-300 bg-surface px-3 py-2.5 dark:border-white/10 dark:bg-surface-dark-muted" value={bloodGroup} onChange={e=>setBloodGroup(e.target.value as BloodGroup)}><option value="">Select blood group</option>{BLOOD_GROUPS.map(b=><option key={b} value={b}>{b}</option>)}</select></label>
+      <Button loading={isRegistering} disabled={!bloodGroup} onClick={()=>bloodGroup&&register({blood_group:bloodGroup,is_available:isAvailable})}>{profile?'Save donor status':'Join blood network'}</Button>
+    </div><p className="px-5 pb-5 text-xs text-slate-500">MedSphere is a coordination platform. Final donor eligibility and physical screening remain with the authorized blood service.</p></Card>
 
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Your Blood Group</label>
-              <select
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-slate-200"
-                value={bloodGroup}
-                onChange={(e) => setBloodGroup(e.target.value as BloodGroup)}
-              >
-                <option value="">Select Blood Group</option>
-                {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(bg => (
-                  <option key={bg} value={bg}>{bg}</option>
-                ))}
-              </select>
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <input 
-                type="checkbox" 
-                id="available" 
-                checked={isAvailable}
-                onChange={(e) => setIsAvailable(e.target.checked)}
-                className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-rose-500 focus:ring-rose-500" 
-              />
-              <label htmlFor="available" className="text-slate-300">I am available to be contacted for donation</label>
-            </div>
+    <BloodLifeSavingFeed />
 
-            <Button onClick={handleRegister} loading={isRegistering} className="w-full" disabled={!bloodGroup}>
-              {profile ? 'Update Donor Profile' : 'Register as Donor'}
-            </Button>
-          </div>
-        </div>
+    <Card><CardHeader title="Network blood inventory" subtitle="Verified blood-bank inventory is a separate fulfillment channel from live donor broadcasts."/><div className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-3">
+      {(inventories??[]).map((row:any)=><div key={row.bank_id+row.blood_group} className="rounded-xl border border-slate-200 p-4 dark:border-white/10"><p className="font-semibold">{row.blood_banks?.name??'Blood bank'}</p><p className="text-xs text-slate-500">{row.blood_banks?.city??'—'}</p><div className="mt-2 flex justify-between text-sm"><span>{row.blood_group}</span><span className="font-bold">{row.units_available} units</span></div></div>)}
+      {!inventories?.length&&<p className="text-sm text-slate-500">No verified inventory available.</p>}
+    </div></Card>
 
-        {/* Urgent Requests Feed */}
-        <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold text-slate-100 flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-rose-500" />
-              Urgent Local Requests
-            </h2>
-            <Button size="sm" variant="secondary" onClick={() => setShowCreateModal(true)}>
-              <Plus className="w-4 h-4 mr-1" /> Request
-            </Button>
-          </div>
-
-          {isRequestsLoading ? (
-            <div className="text-slate-400 text-center py-4">Loading requests...</div>
-          ) : requests?.length === 0 ? (
-            <div className="text-center py-8 text-slate-400">
-              <div className="bg-slate-900/50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3">
-                <Droplet className="w-8 h-8 text-slate-600" />
-              </div>
-              No urgent blood requests in your area right now.
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {requests?.map(req => (
-                <div key={req.id} className="bg-slate-900/50 border border-slate-700 p-4 rounded-lg">
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <h3 className="font-medium text-slate-200">{req.patient_name}</h3>
-                      <p className="text-xs text-slate-400">Hospital: {req.hospital_id || 'Unknown'} • Needed by {req.needed_by ? new Date(req.needed_by).toLocaleDateString() : 'ASAP'}</p>
-                    </div>
-                    <span className="px-2 py-1 bg-rose-500/10 text-rose-400 text-xs font-semibold rounded border border-rose-500/20">
-                      {req.blood_group}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between mt-4">
-                    <span className="text-sm text-slate-300">{req.units} Unit(s)</span>
-                    <Button
-                      variant="primary"
-                      disabled={!isEligible || !isAvailable || offerDonation.isPending}
-                      onClick={() => offerDonation.mutate({ requestId: req.id, units: Math.min(1, req.units) })}
-                    >
-                      {offerDonation.isPending ? 'Sending...' : 'I Can Help'}
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Blood Bank Network Inventory */}
-      <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
-        <h2 className="text-xl font-semibold text-slate-100 mb-6 flex items-center gap-2">
-          <Activity className="w-5 h-5 text-brand-400" />
-          Network Inventory
-        </h2>
-        <NetworkInventory />
-      </div>
-
-      {showCreateModal && <CreateRequestModal onClose={() => setShowCreateModal(false)} />}
-    </div>
-  );
-}
-
-function NetworkInventory() {
-  const { data, isLoading } = useAllBloodInventories();
-  if (isLoading) return <div className="text-slate-400 py-4">Loading network inventory...</div>;
-  if (!data?.length) return <div className="text-slate-400 py-4">No inventory data available.</div>;
-
-  // Group by bank
-  const banks = data.reduce((acc: Record<string, any>, row: any) => {
-    if (!acc[row.bank_id]) {
-      acc[row.bank_id] = {
-        name: row.blood_banks?.name || 'Unknown Bank',
-        city: row.blood_banks?.city || 'Unknown City',
-        inventory: []
-      };
-    }
-    acc[row.bank_id].inventory.push({ group: row.blood_group, units: row.units_available });
-    return acc;
-  }, {});
-
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {Object.entries(banks).map(([id, bank]: [string, any]) => (
-        <div key={id} className="bg-slate-900/50 border border-slate-700 p-4 rounded-lg">
-          <h3 className="font-medium text-slate-200">{bank.name}</h3>
-          <p className="text-xs text-slate-400 mb-4">{bank.city}</p>
-          <div className="flex flex-wrap gap-2">
-            {bank.inventory.map((inv: any) => (
-              <div key={inv.group} className="px-2 py-1 bg-slate-800 border border-slate-600 rounded text-xs">
-                <span className="font-semibold text-rose-400">{inv.group}</span>
-                <span className="text-slate-300 ml-1">{inv.units} U</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+    <div className="rounded-xl border border-brand-200 bg-brand-50 p-4 text-sm text-brand-800 dark:border-brand-900 dark:bg-brand-950/30 dark:text-brand-200"><HeartPulse className="mr-2 inline h-4 w-4"/>Emergency responses remain subject to hospital screening. Only respond when you can safely reach the hospital within the requested window.</div>
+  </div>;
 }

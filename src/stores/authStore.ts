@@ -1,6 +1,7 @@
 import { unwrap } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { closeAbly } from '@/lib/ably';
+import { closeBloodAbly } from '@/lib/bloodAbly';
 import { queryClient } from '@/lib/queryClient';
 import { create } from 'zustand';
 import type { Session } from '@supabase/supabase-js';
@@ -44,7 +45,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ session, status: session ? 'signedIn' : 'signedOut' });
       if (session) await get().refreshProfile();
       else set({ profile: null });
-      if (!session) closeAbly();
+      if (!session) { closeAbly(); closeBloodAbly(); }
     });
   },
 
@@ -65,6 +66,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signOut: async () => {
     await supabase.auth.signOut();
     closeAbly();
+    closeBloodAbly();
     queryClient.clear();
     set({ session: null, profile: null, status: 'signedOut' });
   },

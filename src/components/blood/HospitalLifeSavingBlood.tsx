@@ -7,6 +7,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Input, Select } from '@/components/ui/Input';
 import { BLOOD_GROUPS, type BloodGroup } from '@/types';
 import { useCreateHospitalBloodBroadcast, useHospitalBloodBroadcastResponses, useHospitalBloodBroadcasts, useConfirmHospitalBloodResponse, useDeclineHospitalBloodResponse, useCloseHospitalBloodBroadcast } from '@/hooks/queries/useBloodBroadcastQueries';
+import { useBloodRequestCoverage } from '@/hooks/queries/useBloodFulfillmentQueries';
 
 export function HospitalLifeSavingBlood({ hospitalId }: { hospitalId: string }) {
   const broadcasts=useHospitalBloodBroadcasts(hospitalId);
@@ -17,6 +18,7 @@ export function HospitalLifeSavingBlood({ hospitalId }: { hospitalId: string }) 
   const [open,setOpen]=useState(false); const [selected,setSelected]=useState<string|null>(null);
   const [form,setForm]=useState({patientName:'',bloodGroup:'O+' as BloodGroup,units:1,mode:'normal' as 'normal'|'emergency',neededBy:'',duration:1440,target:''});
   const responses=useHospitalBloodBroadcastResponses(selected ?? undefined);
+  const coverage=useBloodRequestCoverage(selected ?? undefined, hospitalId);
   const submit=()=>{
     if(!form.patientName.trim()||form.units<1)return;
     const neededBy=form.neededBy?new Date(form.neededBy).toISOString():undefined;
@@ -45,9 +47,17 @@ export function HospitalLifeSavingBlood({ hospitalId }: { hospitalId: string }) 
       <div className="grid gap-3 sm:grid-cols-2"><Input label="Stop after donor responses (optional)" type="number" min={1} max={1000} value={form.target} onChange={e=>setForm({...form,target:e.target.value})}/><div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-500 dark:bg-white/5"><Clock3 className="mr-1 inline h-4 w-4"/>Broadcast automatically closes at expiry or when the donor target is reached.</div></div>
       <Button className="w-full" variant="danger" loading={create.isPending} disabled={!form.patientName.trim()||form.units<1||(form.mode==='emergency'&&!form.neededBy)} onClick={submit}>Activate donor broadcast</Button></div>
     </Modal>
-    <Modal open={!!selected} onClose={()=>setSelected(null)} title="Donor response queue" wide><div className="space-y-3">
+    <Modal open={!!selected} onClose={()=>setSelected(null)} title="Donor response & fulfillment" wide>
+      <div className="space-y-4">
+      {coverage.data?.[0] && <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{[
+        ['Requested', coverage.data[0].units_requested],
+        ['Blood received', coverage.data[0].units_fulfilled],
+        ['Donor committed', coverage.data[0].donor_committed_units],
+        ['Still uncovered', coverage.data[0].remaining_uncovered_units],
+      ].map(([label,value])=><div key={label as string} className="rounded-xl border border-slate-200 p-3 dark:border-white/10"><p className="text-[11px] text-slate-500">{label}</p><p className="mt-1 text-xl font-bold">{value}</p></div>)}</div>}
+      <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-500 dark:bg-white/5">Donor commitments are contingent coverage until the blood service records the actual donation. Blood received is the clinically fulfilled quantity.</div>
       {!responses.data?.length&&<p className="py-8 text-center text-sm text-slate-500">No active donor responses yet.</p>}
       {(responses.data??[]).map(r=><div key={r.response_id} className="flex flex-col gap-3 rounded-xl border border-slate-200 p-4 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between"><div><div className="flex items-center gap-2"><Badge tone={r.status==='confirmed'?'success':'info'}>{r.status}</Badge><b>{r.donor_name}</b><span className="text-xs text-slate-500">{r.donor_blood_group} · {r.donor_city??'—'}</span></div><p className="mt-1 text-xs text-slate-500">{new Date(r.responded_at).toLocaleString()}{r.status==='confirmed'&&r.donor_phone?' · '+r.donor_phone:''}</p></div>{r.status==='queued'&&<div className="flex gap-2"><Button size="sm" loading={confirm.isPending} onClick={()=>confirm.mutate(r.response_id)}>Confirm</Button><Button size="sm" variant="secondary" loading={decline.isPending} onClick={()=>decline.mutate(r.response_id)}>Decline</Button></div>}</div>)}
-    </div></Modal>
+      </div></Modal>
   </Card>;
 }

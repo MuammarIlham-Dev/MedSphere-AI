@@ -1,5 +1,5 @@
 export type BloodBroadcastMode = 'normal' | 'emergency';
-export type BloodBroadcastResponseStatus = 'queued' | 'confirmed' | 'declined' | 'withdrawn' | 'fulfilled';
+export type BloodBroadcastResponseStatus = 'queued' | 'confirmed' | 'declined' | 'withdrawn' | 'released' | 'fulfilled';
 
 export interface BloodBroadcast {
   request_id: string;
@@ -17,6 +17,9 @@ export interface BloodBroadcast {
   broadcast_expires_at: string;
   donor_target_count: number | null;
   response_count: number;
+  donor_committed_units?: number;
+  total_covered_units?: number;
+  remaining_uncovered_units?: number;
   distance_km: number | null;
 }
 
@@ -26,6 +29,7 @@ export interface BloodBroadcastResponse {
   status: BloodBroadcastResponseStatus;
   responded_at: string;
   confirmed_at: string | null;
+  units?: number;
   hospital_name: string;
   hospital_city: string | null;
   hospital_address: string | null;
@@ -50,6 +54,8 @@ export interface HospitalBloodBroadcast {
   broadcast_expires_at: string | null;
   donor_target_count: number | null;
   response_count: number;
+  donor_committed_units?: number;
+  remaining_uncovered_units?: number;
   broadcast_closed_at: string | null;
   created_at: string;
 }

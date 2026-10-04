@@ -9,6 +9,8 @@ import { cn, formatDateTime } from '@/lib/utils';
 import { useEffect, useState } from 'react';
 import { IoWaterOutline, IoMegaphoneOutline, IoPeopleOutline } from 'react-icons/io5';
 import { BloodOfferInbox } from '@/components/blood/BloodOfferInbox';
+import { BloodBankCommitmentInbox } from '@/components/blood/BloodBankCommitmentInbox';
+import { BloodBankCommitmentInbox } from '@/components/blood/BloodBankCommitmentInbox';
 import { useBloodInventory, useBloodRequests, useCreateBloodRequest, useMyBank } from '@/hooks/queries/useBloodQueries';
 import { HospitalBloodRequisitions } from '@/components/blood/HospitalBloodRequisitions';
 import { bloodService } from '@/services/blood.service';
@@ -47,6 +49,8 @@ export default function BloodBankDashboard() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         {bank && <BloodOfferInbox bankId={bank.id} />}
+        {bank && <BloodBankCommitmentInbox bankId={bank.id} />}
+        {bank && <BloodBankCommitmentInbox bankId={bank.id} />}
         {bank && (
           <Card>
             <CardHeader title="Inventory" subtitle="Tap a cell to adjust stock (audited)" />

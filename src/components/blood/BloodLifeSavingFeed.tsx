@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Clock3, MapPin, ShieldCheck, Users } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -7,7 +7,12 @@ import { useDonorProfile } from '@/hooks/queries/useBloodQueries';
 import { useDonorBloodBroadcasts, useMyBloodBroadcastResponses, useRespondToBloodBroadcast, useWithdrawBloodBroadcastResponse } from '@/hooks/queries/useBloodBroadcastQueries';
 
 function Countdown({ expiresAt }: { expiresAt: string }) {
-  const remaining = Math.max(0, new Date(expiresAt).getTime() - Date.now());
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const remaining = Math.max(0, new Date(expiresAt).getTime() - now);
   const minutes = Math.floor(remaining / 60000);
   const hours = Math.floor(minutes / 60);
   return <span>{hours ? `${hours}h ${minutes % 60}m` : `${minutes}m`}</span>;

@@ -568,10 +568,70 @@ CREATE POLICY doctors_read ON public.doctors
   );
 
 
+-- Re-apply practice-eligibility gates to older and clinical encounter RPCs.
 
--- Re-apply practice-eligibility gates to older RPCs so verification expiry is enforced server-side.
+CREATE OR REPLACE FUNCTION public.book_appointment(
+  p_doctor_id uuid,
+  p_hospital_id uuid,
+  p_scheduled_at timestamptz,
+  p_duration_min int,
+  p_type consultation_type,
+  p_reason text default null
+) returns public.appointments
+language plpgsql security definer set search_path = public as $$
+declare
+  result public.appointments;
+  next_token int;
+  requested_day date := (p_scheduled_at at time zone 'Asia/Dhaka')::date;
+  requested_time time := (p_scheduled_at at time zone 'Asia/Dhaka')::time;
+  requested_dow int := extract(dow from p_scheduled_at at time zone 'Asia/Dhaka');
+  v_doctor_fee numeric(10,2);
+begin
+  if auth.uid() is null then raise exception 'authentication required'; end if;
+  if p_scheduled_at <= now() then raise exception 'appointment must be in the future'; end if;
+  if p_duration_min not between 5 and 120 then raise exception 'invalid duration'; end if;
 
+  select consultation_fee into v_doctor_fee
+  from public.doctors d
+  where d.id = p_doctor_id and public.doctor_verification_eligible(d.id)
+    and (p_hospital_id is null or d.hospital_id = p_hospital_id)
+    and ((p_type = 'video' and d.video_enabled) or (p_type = 'clinic' and d.clinic_enabled));
 
+  if not found then raise exception 'doctor is unavailable for this consultation'; end if;
+
+  if not exists (
+    select 1 from public.doctor_schedules s
+    where s.doctor_id = p_doctor_id and s.is_active and s.type = p_type
+      and s.weekday = requested_dow
+      and requested_time >= s.start_time
+      and requested_time + make_interval(mins => p_duration_min) <= s.end_time
+      and mod(extract(epoch from (requested_time - s.start_time))::int / 60, s.slot_minutes) = 0
+  ) then raise exception 'requested time is outside the doctor schedule'; end if;
+
+  perform pg_advisory_xact_lock(hashtextextended(p_doctor_id::text || requested_day::text, 0));
+
+  if exists (
+    select 1 from public.appointments a
+    where a.doctor_id = p_doctor_id
+      and a.status not in ('cancelled', 'no_show')
+      and tstzrange(a.scheduled_at, a.scheduled_at + make_interval(mins => a.duration_min), '[)')
+          && tstzrange(p_scheduled_at, p_scheduled_at + make_interval(mins => p_duration_min), '[)')
+  ) then raise exception 'this appointment slot is no longer available'; end if;
+
+  select coalesce(max(token_number), 0) + 1 into next_token
+  from public.appointments where doctor_id = p_doctor_id and day = requested_day;
+
+  insert into public.appointments (
+    patient_id, doctor_id, hospital_id, scheduled_at, duration_min, type, status, token_number, reason, amount_charged
+  ) values (
+    auth.uid(), p_doctor_id, p_hospital_id, p_scheduled_at, p_duration_min, p_type, 'booked', next_token, nullif(trim(p_reason), ''), v_doctor_fee
+  ) returning * into result;
+
+  return result;
+end $$;
+
+revoke all on function public.book_appointment(uuid, uuid, timestamptz, int, consultation_type, text) from public;
+grant execute on function public.book_appointment(uuid, uuid, timestamptz, int, consultation_type, text) to authenticated;
 
 CREATE OR REPLACE FUNCTION public.reschedule_appointment(
   p_appointment_id uuid,
@@ -706,106 +766,6 @@ $$;
 
 REVOKE ALL ON FUNCTION public.reschedule_appointment(uuid, timestamptz) FROM public;
 GRANT EXECUTE ON FUNCTION public.reschedule_appointment(uuid, timestamptz) TO authenticated;
-
-
-CREATE OR REPLACE FUNCTION public.transition_appointment(
-  p_appointment_id uuid,
-  p_status appointment_status,
-  p_reason text DEFAULT NULL
-) RETURNS public.appointments
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  current_row public.appointments;
-  result public.appointments;
-  caller_doctor uuid;
-BEGIN
-  IF auth.uid() IS NULL THEN
-    RAISE EXCEPTION 'authentication required';
-  END IF;
-
-  SELECT *
-  INTO current_row
-  FROM public.appointments
-  WHERE id = p_appointment_id
-  FOR UPDATE;
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'appointment not found';
-  END IF;
-
-  SELECT id
-  INTO caller_doctor
-  FROM public.doctors
-  WHERE profile_id = auth.uid();
-
-  IF p_status = 'rescheduled' THEN
-    RAISE EXCEPTION 'use reschedule_appointment to change appointment time';
-  END IF;
-
-  IF p_status = 'cancelled' THEN
-    IF auth.uid() = current_row.patient_id THEN
-      IF current_row.status NOT IN ('booked', 'confirmed') THEN
-        RAISE EXCEPTION 'patients can only cancel booked or confirmed appointments';
-      END IF;
-    ELSIF caller_doctor IS DISTINCT FROM current_row.doctor_id AND NOT public.is_admin() THEN
-      RAISE EXCEPTION 'forbidden';
-    END IF;
-  ELSIF caller_doctor IS DISTINCT FROM current_row.doctor_id AND NOT public.is_admin() THEN
-    RAISE EXCEPTION 'only the assigned doctor can advance this appointment';
-  END IF;
-
-  IF p_status = 'no_show' AND now() < current_row.scheduled_at THEN
-    RAISE EXCEPTION 'cannot mark no-show before appointment time';
-  END IF;
-
-  IF NOT (
-    (current_row.status = 'booked' AND p_status IN ('confirmed', 'cancelled'))
-    OR (current_row.status = 'confirmed' AND p_status IN ('checked_in', 'cancelled', 'no_show'))
-    OR (current_row.status = 'checked_in' AND p_status IN ('in_progress', 'cancelled', 'no_show'))
-    OR (current_row.status = 'in_progress' AND p_status = 'completed')
-  ) THEN
-    RAISE EXCEPTION 'invalid appointment status transition';
-  END IF;
-
-  UPDATE public.appointments
-  SET status = p_status,
-      cancel_reason = CASE
-        WHEN p_status = 'cancelled' THEN nullif(trim(p_reason), '')
-        ELSE cancel_reason
-      END
-  WHERE id = p_appointment_id
-  RETURNING * INTO result;
-
-  RETURN result;
-END;
-$$;
-
-REVOKE ALL ON FUNCTION public.transition_appointment(uuid, appointment_status, text) FROM public;
-GRANT EXECUTE ON FUNCTION public.transition_appointment(uuid, appointment_status, text) TO authenticated;
-
-
--- Keep the denormalized Dhaka service-day invariant synchronized for every server-side write.
-CREATE OR REPLACE FUNCTION public.sync_appointment_day()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  NEW.day := (NEW.scheduled_at AT TIME ZONE 'Asia/Dhaka')::date;
-  RETURN NEW;
-END;
-$$;
-
-DROP TRIGGER IF EXISTS tr_sync_appointment_day ON public.appointments;
-CREATE TRIGGER tr_sync_appointment_day
-BEFORE INSERT OR UPDATE OF scheduled_at
-ON public.appointments
-FOR EACH ROW
-EXECUTE FUNCTION public.sync_appointment_day();
 
 CREATE OR REPLACE FUNCTION public.get_doctor_encounter_context(p_appointment_id uuid)
 RETURNS TABLE (

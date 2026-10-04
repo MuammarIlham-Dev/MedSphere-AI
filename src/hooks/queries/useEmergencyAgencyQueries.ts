@@ -36,7 +36,7 @@ export function useMyEmergencyAgencyDispatches(agencyIds: string[] = []) {
   return query;
 }
 
-export function useEmergencyAgencyDispatches(emergencyId: string | undefined) {
+export function useEmergencyAgencyDispatches(emergencyId: string | undefined, city?: string | null) {
   const qc = useQueryClient();
   const query = useQuery({
     queryKey: ['emergency-agency-dispatches', emergencyId],
@@ -50,12 +50,12 @@ export function useEmergencyAgencyDispatches(emergencyId: string | undefined) {
   });
 
   useEffect(() => {
-    if (!emergencyId) return;
-    const ch = emergencyChannel(`sos:emergency:${emergencyId}`);
+    if (!emergencyId || !city) return;
+    const ch = emergencyChannel(`sos:operator:${city}`);
     const onUpdate = () => { void qc.invalidateQueries({ queryKey: ['emergency-agency-dispatches', emergencyId] }); };
     void ch.subscribe('emergency:update', onUpdate);
     return () => { void ch.unsubscribe('emergency:update', onUpdate); };
-  }, [emergencyId, qc]);
+  }, [emergencyId, city, qc]);
 
   return query;
 }

@@ -4,15 +4,10 @@ import { publish } from '@/lib/ably';
 import type { ChatMessage, Conversation } from '@/types';
 
 export const chatService = {
-  async forAppointment(appointmentId: string, participantIds: string[]): Promise<Conversation> {
-    const { data: existing } = await supabase.from('conversations')
-      .select('*').eq('appointment_id', appointmentId).maybeSingle();
-    if (existing) return existing as Conversation;
-    const conv = await unwrap<Conversation>(
-      supabase.from('conversations').insert({ appointment_id: appointmentId, subject: 'Consultation' }).select().single());
-    await supabase.from('conversation_participants')
-      .insert(participantIds.map((user_id) => ({ conversation_id: conv.id, user_id })));
-    return conv;
+  async forAppointment(appointmentId: string): Promise<Conversation> {
+    return unwrap<Conversation>(supabase.rpc('get_or_create_appointment_conversation', {
+      p_appointment_id: appointmentId,
+    }));
   },
 
   history: (conversationId: string) =>

@@ -179,7 +179,9 @@ function AppointmentCard({
   const isToday = date.toLocaleDateString('en-US', { timeZone: 'Asia/Dhaka' }) ===
     new Date().toLocaleDateString('en-US', { timeZone: 'Asia/Dhaka' });
   const canManage = !isPast && (a.status === 'booked' || a.status === 'confirmed');
-  const canJoin = !isPast && a.type === 'video' && ['confirmed', 'checked_in', 'in_progress'].includes(a.status);
+  const joinStart = date.getTime() - 15 * 60_000;
+  const joinEnd = date.getTime() + a.duration_min * 60_000 + 60 * 60_000;
+  const canJoin = !isPast && a.type === 'video' && ['confirmed', 'checked_in', 'in_progress'].includes(a.status) && Date.now() >= joinStart && Date.now() <= joinEnd;
 
   const getStatusBadge = () => {
     switch (a.status) {

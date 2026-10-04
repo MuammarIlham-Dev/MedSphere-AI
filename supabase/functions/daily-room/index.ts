@@ -1,155 +1,132 @@
 // @ts-nocheck
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": Deno.env.get("APP_ORIGIN") ?? "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Missing Authorization header" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401
-      });
-    }
+    if (!authHeader) return json({ error: "Missing Authorization header" }, 401);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-    
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const dailyApiKey = Deno.env.get("DAILY_API_KEY") ?? "";
+    if (!supabaseUrl || !anonKey || !serviceRoleKey || !dailyApiKey) return json({ error: "Telemedicine service is not configured" }, 500);
+
+    const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
+    const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401
-      });
-    }
+    const { data: { user }, error: userError } = await userClient.auth.getUser();
+    if (userError || !user) return json({ error: "Unauthorized" }, 401);
 
-    const { appointmentId } = await req.json();
-    
-    const apiKey = Deno.env.get("DAILY_API_KEY");
-    
-    if (!apiKey) {
-      return new Response(
-        JSON.stringify({ error: "Daily.co API key not configured" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
-      );
-    }
+    const body = await req.json().catch(() => ({}));
+    const appointmentId = typeof body.appointmentId === "string" ? body.appointmentId : "";
+    if (!appointmentId) return json({ error: "Missing appointmentId" }, 400);
 
-    if (!appointmentId) {
-      return new Response(
-        JSON.stringify({ error: "Missing appointmentId" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
-      );
-    }
-
-    // Verify appointment ownership
-    const { data: appt, error: apptErr } = await supabase
-      .from('appointments')
-      .select('patient_id, doctors(profile_id)')
-      .eq('id', appointmentId)
-      .single();
-
-    if (apptErr || !appt) {
-      return new Response(JSON.stringify({ error: "Appointment not found" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404
-      });
-    }
-
-    if (appt.patient_id !== user.id && appt.doctors?.profile_id !== user.id) {
-      return new Response(JSON.stringify({ error: "Forbidden" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 403
-      });
-    }
-
-    // Try to create a room with the name of the appointment ID
-    // If it already exists, Daily will return a 400 with 'error' = 'invalid-request-error' and 'info' = 'room already exists' (actually Daily allows GET to fetch it, but let's try POST first)
-    const roomName = `medsphere-${appointmentId}`.replace(/[^a-zA-Z0-9-]/g, '-').substring(0, 40);
-
-    let response = await fetch("https://api.daily.co/v1/rooms", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        name: roomName,
-        privacy: "private",
-        properties: {
-          exp: Math.round(Date.now() / 1000) + 86400, // Expires in 24 hours
-          enable_chat: true,
-          enable_screenshare: true,
-        },
-      }),
+    const { data: rows, error: contextError } = await userClient.rpc("request_telemedicine_join", {
+      p_appointment_id: appointmentId,
     });
+    if (contextError) return json({ error: contextError.message }, 403);
 
-    if (response.status === 400) {
-      const errBody = await response.json();
-      if (errBody.info?.includes("already exists")) {
-        // Fetch the existing room
-        response = await fetch(`https://api.daily.co/v1/rooms/${roomName}`, {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
+    const context = rows?.[0];
+    if (!context) return json({ error: "Telemedicine session unavailable" }, 403);
+
+    const roomName = context.room_name;
+    const expiresAt = new Date(context.expires_at);
+    const exp = Math.max(Math.floor(Date.now() / 1000) + 60, Math.floor(expiresAt.getTime() / 1000));
+
+    let roomUrl = context.room_url;
+    if (!roomUrl) {
+      let roomResponse = await fetch("https://api.daily.co/v1/rooms", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${dailyApiKey}`,
+        },
+        body: JSON.stringify({
+          name: roomName,
+          privacy: "private",
+          properties: {
+            exp,
+            enable_chat: true,
+            enable_screenshare: true,
           },
-        });
-      } else {
-        throw new Error(errBody.info || "Failed to create Daily room");
+        }),
+      });
+
+      if (roomResponse.status === 400) {
+        const errorBody = await roomResponse.json().catch(() => ({}));
+        if (String(errorBody.info ?? "").toLowerCase().includes("already exists")) {
+          roomResponse = await fetch(`https://api.daily.co/v1/rooms/${roomName}`, {
+            headers: { Authorization: `Bearer ${Deno.env.get("DAILY_API_KEY") ?? ""}` },
+          });
+        } else {
+          return json({ error: "Daily room creation failed" }, 502);
+        }
       }
-    }
 
-    if (!response.ok) {
-      throw new Error("Failed to communicate with Daily.co rooms API");
+      if (!roomResponse.ok) return json({ error: "Daily room service unavailable" }, 502);
+      const room = await roomResponse.json();
+      roomUrl = room.url;
+      const { error: updateError } = await adminClient
+        .from("telemedicine_sessions")
+        .update({ room_url: roomUrl, expires_at: expiresAt.toISOString(), updated_at: new Date().toISOString() })
+        .eq("id", context.session_id);
+      if (updateError) return json({ error: "Could not persist telemedicine room" }, 500);
     }
-
-    const roomData = await response.json();
-    
-    // Generate meeting token
-    // First fetch user's profile to get their name
-    const { data: profile } = await supabase.from('profiles').select('full_name, role').eq('id', user.id).single();
-    const userName = profile?.full_name || 'Participant';
-    const isOwner = profile?.role === 'doctor';
 
     const tokenResponse = await fetch("https://api.daily.co/v1/meeting-tokens", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${Deno.env.get("DAILY_API_KEY") ?? ""}`,
       },
       body: JSON.stringify({
         properties: {
           room_name: roomName,
-          is_owner: isOwner,
-          user_name: userName,
-          user_id: user.id
-        }
-      })
+          is_owner: context.participant_role === "doctor",
+          user_name: context.participant_name,
+          user_id: user.id,
+          exp,
+        },
+      }),
     });
-    
-    if (!tokenResponse.ok) {
-      throw new Error("Failed to generate Daily meeting token");
-    }
-    
+
+    if (!tokenResponse.ok) return json({ error: "Could not issue telemedicine access token" }, 502);
     const tokenData = await tokenResponse.json();
 
-    return new Response(JSON.stringify({ url: roomData.url, token: tokenData.token }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    return json({
+      sessionId: context.session_id,
+      appointmentId: context.appointment_id,
+      role: context.participant_role,
+      participantName: context.participant_name,
+      otherParticipantName: context.other_participant_name,
+      scheduledAt: context.scheduled_at,
+      durationMin: context.duration_min,
+      expiresAt: context.expires_at,
+      sessionStatus: context.session_status,
+      url: roomUrl,
+      token: tokenData.token,
     });
-  } catch (error: any) {
-    console.error("Function error:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 400,
-    });
+  } catch (error) {
+    console.error("daily-room error", error);
+    return json({ error: error instanceof Error ? error.message : "Telemedicine service failed" }, 500);
   }
 });

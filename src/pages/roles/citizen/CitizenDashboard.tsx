@@ -14,7 +14,9 @@ import { useRef, useState } from 'react';
 import { useReveal } from '@/lib/gsap';
 import { AiSymptomChecker } from '@/components/intelligence/AiSymptomChecker';
 import { Modal } from '@/components/ui/Modal';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, AlertTriangle, Clock3 } from 'lucide-react';
+import { useDonorProfile } from '@/hooks/queries/useBloodQueries';
+import { useDonorBloodBroadcasts } from '@/hooks/queries/useBloodBroadcastQueries';
 
 export default function CitizenDashboard() {
   const profile = useAuthStore((s) => s.profile);
@@ -23,12 +25,22 @@ export default function CitizenDashboard() {
   const { data: records } = useMyMedicalRecords();
   const { data: labs } = useMyLabReports();
   const [showAiChecker, setShowAiChecker] = useState(false);
+  const [now, setNow] = useState(Date.now());
+  const { data: donor } = useDonorProfile();
+  const bloodAlerts = useDonorBloodBroadcasts();
   const rootRef = useRef<HTMLDivElement>(null);
   useReveal(rootRef);
+  useEffect(() => { const t = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(t); }, []);
 
   const upcoming = (appointments ?? []).filter((a) => new Date(a.scheduled_at) > new Date() && a.status !== 'cancelled');
   const activePrescriptions = (prescriptions ?? []).filter(p => p.status === 'active').length;
   const docsCount = (records?.length ?? 0) + (labs?.length ?? 0);
+  const activeBloodAlerts = bloodAlerts.data ?? [];
+  const nextDonationAt = donor?.last_donation_at ? (() => { const d = new Date(donor.last_donation_at); d.setMonth(d.getMonth()+4); return d; })() : null;
+  const donationRemaining = nextDonationAt ? Math.max(0, nextDonationAt.getTime()-now) : 0;
+  const donationDays = Math.floor(donationRemaining/86400000);
+  const donationHours = Math.floor((donationRemaining%86400000)/3600000);
+  const donationMinutes = Math.floor((donationRemaining%3600000)/60000);
 
   return (
     <PageTransition>
@@ -46,7 +58,7 @@ export default function CitizenDashboard() {
 
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           <KpiCard label="Upcoming appointments" value={upcoming.length} icon={<IoCalendarOutline className="h-5 w-5" />} />
-          <Link to="/app/blood-network" className="group">
+          <Link to="/app/blood" className="group">
             <KpiCard label="Blood Donation" value={profile?.blood_group ?? 'Join Network'} icon={<IoWaterOutline className="h-5 w-5 group-hover:text-rose-500 transition-colors" />} />
           </Link>
           <Link to="/app/organ-registry" className="group">
@@ -60,6 +72,19 @@ export default function CitizenDashboard() {
           </Link>
         </div>
 
+        {activeBloodAlerts.length > 0 && donor?.is_eligible && donor?.is_available && (
+          <Link to="/app/blood" className="mt-6 block">
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-4 shadow-sm dark:border-red-900 dark:bg-red-950/30">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="flex items-center gap-2 text-red-700 dark:text-red-300"><AlertTriangle className="h-5 w-5"/><span className="font-bold">Blood help may be needed in your city</span></div>
+                  <p className="mt-1 text-sm text-red-700/80 dark:text-red-200/80">{activeBloodAlerts.filter(a=>a.broadcast_mode==='emergency').length ? 'An emergency-compatible blood broadcast is active.' : 'A verified hospital has an active blood donor request.'} Open Blood Network to review the hospital and response window.</p>
+                </div>
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white"><Clock3 className="h-4 w-4"/>{activeBloodAlerts.length} active alert{activeBloodAlerts.length===1?'':'s'}</span>
+              </div>
+            </div>
+          </Link>
+        )}
         <div className="mt-6 grid gap-4 lg:grid-cols-2">
           <Card data-reveal>
             <CardHeader title="Upcoming appointments" subtitle="Your next consultations"

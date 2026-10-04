@@ -6,11 +6,31 @@ export function usePendingDoctors() {
   return useQuery({ queryKey: ['pending-doctors'], queryFn: adminService.pendingDoctors });
 }
 
+export function usePendingDoctorCredentials() {
+  return useQuery({ queryKey: ['pending-doctor-credentials'], queryFn: adminService.pendingDoctorCredentials });
+}
+
+export function useReviewDoctorCredential() {
+  const qc = useQueryClient();
+  const toast = useUiStore((s) => s.toast);
+  return useMutation({
+    mutationFn: ({ id, status, notes }: { id: string; status: 'accepted' | 'rejected'; notes?: string }) =>
+      adminService.reviewDoctorCredential(id, status, notes),
+    onSuccess: () => {
+      toast('success', 'Credential review saved');
+      void qc.invalidateQueries({ queryKey: ['pending-doctor-credentials'] });
+      void qc.invalidateQueries({ queryKey: ['pending-doctors'] });
+      void qc.invalidateQueries({ queryKey: ['pending-doctor-credentials'] });
+    },
+    onError: (e) => toast('error', e instanceof Error ? e.message : 'Credential review failed'),
+  });
+}
+
 export function useVerifyDoctor() {
   const qc = useQueryClient();
   const toast = useUiStore((s) => s.toast);
   return useMutation({
-    mutationFn: ({ id, approve }: { id: string; approve: boolean }) => adminService.verifyDoctor(id, approve),
+    mutationFn: ({ id, approve, reason }: { id: string; approve: boolean; reason?: string }) => adminService.verifyDoctor(id, approve, reason),
     onSuccess: (_d, v) => {
       toast('success', v.approve ? 'Doctor verified' : 'Application rejected');
       void qc.invalidateQueries({ queryKey: ['pending-doctors'] });

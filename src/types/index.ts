@@ -84,6 +84,27 @@ export interface Doctor {
   rating_avg: number;
   rating_count: number;
   verification: VerificationStatus;
+  verified_at?: string | null;
+  verified_by?: string | null;
+  verification_reason?: string | null;
+  verification_due_at?: string | null;
+}
+
+export interface DoctorCredential {
+  id: string;
+  doctor_id: string;
+  credential_type: 'medical_license' | 'degree' | 'specialty_certificate' | 'identity' | 'other';
+  file_id: string;
+  document_number: string | null;
+  issued_at: string | null;
+  expires_at: string | null;
+  status: 'pending' | 'accepted' | 'rejected' | 'expired';
+  review_notes: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  file?: { bucket: string; path: string; mime: string; size_bytes: number } | null;
 }
 
 /** Doctor card as returned by searchDoctors (joined shape). */

@@ -2,6 +2,7 @@ import { PageHeader, EmptyState } from '@/components/ui/KpiCard';
 import { PageTransition } from '@/components/transitions/PageTransition';
 import { ScheduleSettings } from '@/components/doctor/ScheduleSettings';
 import { DoctorProfileSettings } from '@/components/doctor/DoctorProfileSettings';
+import { DoctorCredentials } from '@/components/doctor/DoctorCredentials';
 import { useAuthStore } from '@/stores/authStore';
 import { useMyDoctor } from '@/hooks/queries/useDoctorQueries';
 import { FullPageLoader } from '@/components/ui/Spinner';
@@ -24,6 +25,7 @@ export default function DoctorSchedule() {
       />
       <ScheduleSettings doctorId={doctor.id} />
       <DoctorProfileSettings doctor={doctor} />
+      <DoctorCredentials doctor={doctor} />
     </PageTransition>
   );
 }

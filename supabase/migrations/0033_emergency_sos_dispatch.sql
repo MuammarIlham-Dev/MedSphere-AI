@@ -53,6 +53,20 @@ drop policy if exists emergencies_insert on public.emergencies;
 drop policy if exists emergencies_update on public.emergencies;
 drop policy if exists ambulances_write on public.ambulances;
 
+drop policy if exists emergencies_read on public.emergencies;
+create policy emergencies_read on public.emergencies
+for select using (
+  reporter_id = auth.uid()
+  or public.is_admin()
+  or (public.current_role() = 'emergency_operator'
+      and (city is null or city = (select p.city from public.profiles p where p.id = auth.uid())))
+  or (public.current_role() = 'hospital'
+      and assigned_hospital_id in (select h.id from public.hospitals h where h.owner_id = auth.uid()))
+  or (public.current_role() = 'ambulance_driver'
+      and assigned_ambulance_id in (select a.id from public.ambulances a where a.driver_id = auth.uid()))
+  or public.current_role() = 'government'
+);
+
 drop policy if exists ambulances_read on public.ambulances;
 create policy ambulances_read on public.ambulances
 for select using (
@@ -249,6 +263,7 @@ declare
   hospital_row public.hospitals;
   op_city text;
   distance numeric(8,2);
+  existing public.emergency_dispatches;
   result public.emergency_dispatches;
 begin
   if public.current_role() not in ('emergency_operator','admin','super_admin') then
@@ -272,11 +287,34 @@ begin
     raise exception 'This emergency type requires a connected non-ambulance agency';
   end if;
 
-  if exists (
-    select 1 from public.emergency_dispatches d
-    where d.emergency_id = e.id and d.status in ('offered','accepted')
-  ) then
-    raise exception 'An ambulance is already assigned or awaiting acknowledgement';
+  select d.* into existing
+  from public.emergency_dispatches d
+  where d.emergency_id=e.id
+    and d.status in ('offered','accepted')
+  order by d.offered_at desc
+  limit 1
+  for update;
+
+  if existing.id is not null then
+    if existing.status='offered' and existing.offered_at <= now() - interval '30 seconds' then
+      update public.emergency_dispatches
+      set status='cancelled', responded_at=coalesce(responded_at,now())
+      where id=existing.id;
+
+      update public.ambulances
+      set status='available', updated_at=now()
+      where id=existing.ambulance_id and status='dispatched';
+
+      update public.emergencies
+      set updated_at=now(),
+          log=coalesce(log,'[]'::jsonb) || jsonb_build_array(jsonb_build_object(
+            'at',now(),'event','dispatch_timeout_released','by',auth.uid(),
+            'ambulance_id',existing.ambulance_id
+          ))
+      where id=e.id;
+    else
+      raise exception 'An ambulance is already assigned or awaiting acknowledgement';
+    end if;
   end if;
 
   select a.* into candidate
@@ -436,11 +474,12 @@ begin
     raise exception 'Only ambulance drivers can accept dispatches';
   end if;
 
-  select * into d from public.emergency_dispatches where id = p_dispatch_id for update;
+  select * into d from public.emergency_dispatches where id = p_dispatch_id;
   if not found or d.driver_id <> auth.uid() then raise exception 'Dispatch not found'; end if;
   if d.status <> 'offered' then raise exception 'Dispatch is no longer available'; end if;
 
   select * into e from public.emergencies where id = d.emergency_id for update;
+  select * into d from public.emergency_dispatches where id = p_dispatch_id for update;
   select * into a from public.ambulances where id = d.ambulance_id for update;
 
   if e.status <> 'active' then raise exception 'Emergency is no longer awaiting dispatch'; end if;

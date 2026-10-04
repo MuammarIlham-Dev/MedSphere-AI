@@ -394,7 +394,7 @@ declare
   distance numeric(8,2);
 begin
   if public.current_role() not in ('emergency_operator','admin','super_admin')
-     and coalesce(auth.role(),'') <> 'service_role' then
+     and coalesce((select auth.jwt() ->> 'role'),'') <> 'service_role' then
     raise exception 'Unauthorized emergency escalation access';
   end if;
 

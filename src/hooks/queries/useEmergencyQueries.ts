@@ -1,7 +1,7 @@
 import * as Ably from 'ably';
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { emergencyChannel } from '@/lib/emergencyAbly';
+import { authorizeEmergencyAbly, emergencyChannel } from '@/lib/emergencyAbly';
 import { emergencyService } from '@/services/emergency.service';
 import { useUiStore } from '@/stores/uiStore';
 
@@ -67,14 +67,29 @@ export function useAmbulanceTrack(ambulanceId: string | undefined) {
       return;
     }
 
+    let active = true;
     const ch = emergencyChannel(`track:ambulance:${ambulanceId}`);
     const onLoc = (msg: Ably.Message) => {
       const data = msg.data as { ambulanceId: string; lat: number; lng: number; at: string };
-      setLoc({ lat: data.lat, lng: data.lng, at: data.at });
+      if (data.ambulanceId === ambulanceId) {
+        setLoc({ lat: data.lat, lng: data.lng, at: data.at });
+      }
     };
 
-    void ch.subscribe('track:loc', onLoc);
-    return () => { void ch.unsubscribe('track:loc', onLoc); };
+    void (async () => {
+      try {
+        // Re-authenticate first so citizen tokens gain only the newly assigned ambulance channel.
+        await authorizeEmergencyAbly();
+        if (active) await ch.subscribe('track:loc', onLoc);
+      } catch {
+        // The 30s emergency query remains the recovery path if realtime authorization is unavailable.
+      }
+    })();
+
+    return () => {
+      active = false;
+      void ch.unsubscribe('track:loc', onLoc);
+    };
   }, [ambulanceId]);
 
   return loc;

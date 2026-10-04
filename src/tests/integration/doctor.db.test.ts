@@ -489,4 +489,183 @@ describe.skipIf(!integrationEnabled)('Doctor Tier Database Integration with Fixt
       expect(error?.message).toMatch(/already exists/i);
     });
   });
+
+  describe('Citizen Appointment Lifecycle', () => {
+    const nextWednesday = `(
+      (CURRENT_DATE
+        + ((3 - EXTRACT(DOW FROM CURRENT_DATE)::int + 7) % 7)
+        + 7
+        + time '00:00'
+      ) AT TIME ZONE 'Asia/Dhaka'
+    )`;
+
+    it('should return live availability and mark a booked slot unavailable', async () => {
+      let slotAt: string | undefined;
+
+      await sql.begin(async (tx) => {
+        await tx`SET LOCAL ROLE authenticated`;
+        await tx`SELECT set_config(
+          'request.jwt.claims',
+          ${JSON.stringify({ sub: testPatientUserId, role: 'authenticated', aud: 'authenticated' })},
+          true
+        )`;
+
+        const slots = await tx`
+          SELECT slot_at, available
+          FROM public.get_doctor_slots(
+            ${testDoctorId},
+            ${nextWednesday}::date,
+            'clinic'::consultation_type,
+            NULL
+          )
+          WHERE slot_at = (${nextWednesday}::timestamptz + interval '10 hours')
+        `;
+
+        expect(slots.length).toBe(1);
+        expect(slots[0]?.available).toBe(true);
+        slotAt = slots[0]?.slot_at;
+      });
+
+      expect(slotAt).toBeDefined();
+
+      const appointment = await sql.begin(async (tx) => {
+        await tx`SET LOCAL ROLE authenticated`;
+        await tx`SELECT set_config(
+          'request.jwt.claims',
+          ${JSON.stringify({ sub: testPatientUserId, role: 'authenticated', aud: 'authenticated' })},
+          true
+        )`;
+        const result = await tx`
+          SELECT (public.book_appointment(
+            ${testDoctorId},
+            NULL,
+            ${slotAt}::timestamptz,
+            15,
+            'clinic'::consultation_type,
+            'availability-test'
+          )).id AS id
+        `;
+        return result[0]?.id as string;
+      });
+
+      const booked = await sql`
+        SELECT available
+        FROM public.get_doctor_slots(
+          ${testDoctorId},
+          ${nextWednesday}::date,
+          'clinic'::consultation_type,
+          NULL
+        )
+        WHERE slot_at = ${slotAt}::timestamptz
+      `;
+      expect(booked[0]?.available).toBe(false);
+
+      await sql`DELETE FROM public.appointments WHERE id = ${appointment}`;
+    });
+
+    it('should atomically reschedule and preserve the historical fee', async () => {
+      const original = await sql`
+        INSERT INTO public.appointments (
+          patient_id, doctor_id, scheduled_at, duration_min, type, status, token_number, amount_charged
+        ) VALUES (
+          ${testPatientId},
+          ${testDoctorId},
+          (${nextWednesday}::timestamptz + interval '11 hours'),
+          15,
+          'clinic',
+          'confirmed',
+          800,
+          750
+        )
+        RETURNING id, day, amount_charged
+      `;
+
+      const result = await sql.begin(async (tx) => {
+        await tx`SET LOCAL ROLE authenticated`;
+        await tx`SELECT set_config(
+          'request.jwt.claims',
+          ${JSON.stringify({ sub: testPatientUserId, role: 'authenticated', aud: 'authenticated' })},
+          true
+        )`;
+        return tx`
+          SELECT *
+          FROM public.reschedule_appointment(
+            ${original[0]?.id},
+            (${nextWednesday}::timestamptz + interval '12 hours')
+          )
+        `;
+      });
+
+      expect(result.length).toBe(1);
+      expect(result[0]?.status).toBe('confirmed');
+      expect(Number(result[0]?.amount_charged)).toBe(750);
+      expect(result[0]?.day).toBe(result[0]?.scheduled_at.toISOString().slice(0, 10));
+
+      await sql`DELETE FROM public.appointments WHERE id = ${original[0]?.id}`;
+    });
+
+    it('should reject a generic rescheduled status and enforce patient cancellation timing', async () => {
+      const appointment = await sql`
+        INSERT INTO public.appointments (
+          patient_id, doctor_id, scheduled_at, duration_min, type, status, token_number, amount_charged
+        ) VALUES (
+          ${testPatientId},
+          ${testDoctorId},
+          NOW() + interval '2 days',
+          15,
+          'clinic',
+          'checked_in',
+          880,
+          750
+        )
+        RETURNING id
+      `;
+
+      let cancelError;
+      try {
+        await sql.begin(async (tx) => {
+          await tx`SET LOCAL ROLE authenticated`;
+          await tx`SELECT set_config(
+            'request.jwt.claims',
+            ${JSON.stringify({ sub: testPatientUserId, role: 'authenticated', aud: 'authenticated' })},
+            true
+          )`;
+          await tx`
+            SELECT public.transition_appointment(
+              ${appointment[0]?.id},
+              'cancelled'::appointment_status,
+              'too late'
+            )
+          `;
+        });
+      } catch (error: any) {
+        cancelError = error;
+      }
+      expect(cancelError?.message).toMatch(/patients can only cancel/i);
+
+      let rescheduledError;
+      try {
+        await sql.begin(async (tx) => {
+          await tx`SET LOCAL ROLE authenticated`;
+          await tx`SELECT set_config(
+            'request.jwt.claims',
+            ${JSON.stringify({ sub: testPatientUserId, role: 'authenticated', aud: 'authenticated' })},
+            true
+          )`;
+          await tx`
+            SELECT public.transition_appointment(
+              ${appointment[0]?.id},
+              'rescheduled'::appointment_status,
+              NULL
+            )
+          `;
+        });
+      } catch (error: any) {
+        rescheduledError = error;
+      }
+      expect(rescheduledError?.message).toMatch(/use reschedule_appointment/i);
+
+      await sql`DELETE FROM public.appointments WHERE id = ${appointment[0]?.id}`;
+    });
+  });
 });

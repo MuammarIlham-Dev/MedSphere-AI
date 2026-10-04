@@ -121,18 +121,6 @@ export function usePublicBloodRequests() {
   });
 }
 
-export function useLogDonation() {
-  const qc = useQueryClient();
-  const toast = useUiStore((s) => s.toast);
-  return useMutation({
-    mutationFn: ({ donorId, bankId, units }: { donorId: string, bankId: string, units?: number }) => bloodService.logDonation(donorId, bankId, units),
-    onSuccess: () => {
-      toast('success', 'Donation logged successfully');
-      void qc.invalidateQueries({ queryKey: ['blood-donor-profile'] });
-    },
-  });
-}
-
 export function useNearbyDonors(bloodGroup: string, lat: number, lng: number) {
   return useQuery({
     queryKey: ['nearby-donors', bloodGroup, lat, lng],

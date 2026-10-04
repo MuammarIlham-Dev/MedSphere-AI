@@ -10,6 +10,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useMyHospital } from '@/hooks/queries/useHospitalQueries';
 import { useHospitalBloodRequests,useCreateHospitalBloodRequest,useCancelHospitalBloodRequest } from '@/hooks/queries/useHospitalBlood';
 import { BLOOD_GROUPS,URGENCY_LEVELS,type BloodGroup,type Urgency } from '@/types';
+import { HospitalLifeSavingBlood } from '@/components/blood/HospitalLifeSavingBlood';
 
 export default function HospitalBlood(){
   const profile=useAuthStore(s=>s.profile);
@@ -33,6 +34,7 @@ export default function HospitalBlood(){
       <KpiCard label="Completed requisitions" value={(requests??[]).filter(r=>r.status==='fulfilled').length}/>
       <KpiCard label="Units requested" value={(requests??[]).reduce((n,r)=>n+r.units,0)}/>
     </div>
+    <HospitalLifeSavingBlood hospitalId={hospital.id}/>
     <Card className="mt-6">
       <CardHeader title="Hospital blood requisitions" subtitle="Patient identity stays inside the authorized hospital/blood-bank workflow."/>
       <div className="divide-y divide-slate-100 dark:divide-white/5">

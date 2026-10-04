@@ -336,6 +336,7 @@ DECLARE
   v_doctor public.doctors%rowtype;
   v_license public.doctor_credentials%rowtype;
   v_due_at timestamptz;
+  v_old_status public.verification_status;
 BEGIN
   IF NOT public.is_admin() THEN
     RAISE EXCEPTION 'administrator access required';
@@ -354,6 +355,8 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'doctor not found';
   END IF;
+
+  v_old_status := v_doctor.verification;
 
   IF p_status = 'verified' THEN
     SELECT *
@@ -403,7 +406,7 @@ BEGIN
     'doctor.verification.changed',
     'doctors',
     v_doctor.id::text,
-    jsonb_build_object('verification', (SELECT verification FROM public.doctors WHERE id = v_doctor.id)),
+    jsonb_build_object('verification', v_old_status, 'doctor_id', v_doctor.id),
     jsonb_build_object(
       'verification', p_status,
       'reason', v_doctor.verification_reason,

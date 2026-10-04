@@ -226,7 +226,7 @@ create or replace function public.required_emergency_agency_types(
 ) returns public.emergency_agency_type[]
 language sql immutable as $$
   select case lower(trim(coalesce(p_type,'medical')))
-    when 'medical' then array['ems']::public.emergency_agency_type[]
+    when 'medical' then array[]::public.emergency_agency_type[]
     when 'accident' then array['ems','police','rescue']::public.emergency_agency_type[]
     when 'fire' then array['fire','ems']::public.emergency_agency_type[]
     when 'police' then array['police','ems']::public.emergency_agency_type[]
@@ -705,3 +705,25 @@ end $$;
 
 revoke all on function public.get_emergency_operator_feed() from public;
 grant execute on function public.get_emergency_operator_feed() to authenticated;
+
+
+-- Keep secondary agency work aligned when the primary incident is cancelled or resolved.
+create or replace function public.sync_emergency_agency_dispatches_on_incident_status()
+returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if new.status in ('resolved','cancelled') and old.status is distinct from new.status then
+    update public.emergency_agency_dispatches
+    set status='cancelled',
+        responded_at=coalesce(responded_at,now()),
+        completed_at=coalesce(completed_at,now())
+    where emergency_id=new.id
+      and status in ('offered','acknowledged','en_route','on_scene');
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists trg_sync_emergency_agencies on public.emergencies;
+create trigger trg_sync_emergency_agencies
+after update of status on public.emergencies
+for each row execute function public.sync_emergency_agency_dispatches_on_incident_status();

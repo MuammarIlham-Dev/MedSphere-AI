@@ -116,7 +116,7 @@ Deno.serve(async (req) => {
   let agencyDispatch: any = null;
   let agency: any = null;
 
-  if (action.startsWith('agency_dispatch_')) {
+  if (action.startsWith('agency_dispatch_') && action !== 'agency_dispatches_changed') {
     if (!dispatchId) return new Response('dispatch id required', { status: 400, headers: CORS });
 
     const { data: dispatch } = await service

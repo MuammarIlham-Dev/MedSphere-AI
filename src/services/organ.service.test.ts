@@ -8,8 +8,8 @@ vi.mock('@/lib/supabase', () => ({
     rpc: vi.fn(),
     auth: {
       getUser: vi.fn(),
-    }
-  }
+    },
+  },
 }));
 
 describe('organ.service', () => {
@@ -17,44 +17,41 @@ describe('organ.service', () => {
     vi.clearAllMocks();
   });
 
-  it('registerDonor sets consent correctly using RPC', async () => {
-    vi.mocked(supabase.auth.getUser).mockResolvedValueOnce({ data: { user: { id: 'u1' } }, error: null } as any);
-    
-    const mockUpsert = vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'donor-123' }, error: null }) }) });
-    vi.mocked(supabase.from).mockReturnValue({ upsert: mockUpsert } as any);
-    vi.mocked(supabase.rpc).mockResolvedValue({ data: { id: 'donor-123', consent: 'pending' }, error: null } as any);
-
-    await organService.registerDonor({
-      has_consent: true,
-      organs: ['heart', 'kidneys'],
-      emergency_contact_name: 'Jane Doe',
-      emergency_contact_phone: '123456789'
-    } as any);
-
-    expect(supabase.from).toHaveBeenCalledWith('organ_donors');
-    expect(mockUpsert).toHaveBeenCalledWith({
+  it('registerDonor uses the authoritative donor pledge RPC', async () => {
+    const mockDonor = {
+      id: 'donor-123',
       profile_id: 'u1',
-      organs: ['heart', 'kidneys'],
-      emergency_contact_name: 'Jane Doe',
-      emergency_contact_phone: '123456789',
-      has_consent: true
-    }, { onConflict: 'profile_id' });
+      blood_group: 'A+',
+      organs: ['heart'],
+      hla: [],
+      consent: 'pending',
+    };
+    vi.mocked(supabase.rpc).mockResolvedValue({ data: mockDonor, error: null } as any);
 
-    expect(supabase.rpc).toHaveBeenCalledWith('update_organ_consent', {
-      p_donor_id: 'donor-123',
-      p_consent: 'pending',
-      p_file_id: null
+    const result = await organService.registerDonor({
+      blood_group: 'A+',
+      organs: ['heart'],
+      hla: [],
     });
+
+    expect(supabase.rpc).toHaveBeenCalledWith('register_organ_donor_pledge', {
+      p_blood_group: 'A+',
+      p_organs: ['heart'],
+      p_hla: [],
+    });
+    expect(result).toEqual(mockDonor);
   });
 
-  it('withdrawConsent sets consent to withdrawn using RPC', async () => {
-    vi.mocked(supabase.rpc).mockResolvedValue({ data: { id: 'donor-123', consent: 'withdrawn' }, error: null } as any);
+  it('withdrawConsent uses the dedicated consent-withdrawal RPC', async () => {
+    vi.mocked(supabase.rpc).mockResolvedValue({
+      data: { id: 'donor-123', consent: 'withdrawn' },
+      error: null,
+    } as any);
 
     await organService.withdrawConsent('donor-123');
 
-    expect(supabase.rpc).toHaveBeenCalledWith('update_organ_consent', {
+    expect(supabase.rpc).toHaveBeenCalledWith('withdraw_organ_consent', {
       p_donor_id: 'donor-123',
-      p_consent: 'withdrawn'
     });
   });
 });

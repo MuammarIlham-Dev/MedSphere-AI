@@ -120,6 +120,10 @@ BEGIN
   SELECT * INTO d FROM public.doctors WHERE id = a.doctor_id;
   SELECT * INTO caller_profile FROM public.profiles WHERE id = auth.uid();
 
+  IF NOT public.doctor_verification_eligible(d.id) THEN
+    RAISE EXCEPTION 'doctor is not currently eligible for telemedicine';
+  END IF;
+
   IF a.patient_id = auth.uid() THEN
     role_name := 'patient';
     SELECT * INTO other_profile FROM public.profiles WHERE id = d.profile_id;

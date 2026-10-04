@@ -27,7 +27,6 @@ export default function OrganDonation() {
   const [bloodGroup, setBloodGroup] = useState<BloodGroup | ''>('');
   const [selectedOrgans, setSelectedOrgans] = useState<OrganType[]>([]);
   const [hasConsent, setHasConsent] = useState(false);
-  const [nokContact, setNokContact] = useState('');
 
   // Pre-fill form if donor profile exists or user profile has blood group
   useEffect(() => {
@@ -153,16 +152,9 @@ export default function OrganDonation() {
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Next of Kin Contact (Optional)</label>
-                  <input
-                    type="text"
-                    placeholder="Emergency Contact Phone"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-slate-200 focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-                    value={nokContact}
-                    onChange={(e) => setNokContact(e.target.value)}
-                  />
-                  <p className="text-xs text-slate-500 mt-1">We recommend informing your family of your decision.</p>
+                <div className="rounded-lg bg-slate-900/60 border border-slate-700 p-4">
+                  <p className="text-sm font-medium text-slate-200">Verification status</p>
+                  <p className="text-xs text-slate-500 mt-1">Your pledge remains pending until the authorized registry process reviews it.</p>
                 </div>
               </div>
 
@@ -207,9 +199,10 @@ export default function OrganDonation() {
                     />
                   </div>
                   <span className="text-sm text-slate-300 group-hover:text-slate-200 transition-colors">
-                    I hereby pledge to donate the selected organs for transplantation after my death. 
-                    I confirm that this decision is made voluntarily. I understand that my family will be 
-                    consulted at the time of donation, and this digital consent serves as my formal declaration.
+                    I voluntarily submit this organ-donation pledge for registry verification. I understand that
+                    submitting this form does not by itself grant registry consent; an authorized organ-registry
+                    reviewer may need to verify my identity, documentation, and eligibility before my pledge can
+                    enter the active matching pool.
                   </span>
                 </label>
               </div>

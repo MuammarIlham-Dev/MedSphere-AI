@@ -590,6 +590,33 @@ describe.skipIf(!integrationEnabled)('Doctor Tier Database Integration with Fixt
       expect(updatedApt[0]?.status).toBe('completed');
     });
 
+    it('should close the session when the appointment is completed', async () => {
+      const apt = await sql`
+        INSERT INTO public.appointments (
+          patient_id, doctor_id, scheduled_at, duration_min, type, status, amount_charged, token_number
+        )
+        VALUES (${testPatientId}, ${testDoctorId}, NOW(), 30, 'video', 'confirmed', 500, 202
+        )
+        RETURNING id
+      `;
+
+      const context = await sql.begin(async (tx) => {
+        await tx`SET LOCAL ROLE authenticated`;
+        await tx`SELECT set_config('request.jwt.claims', ${JSON.stringify({ sub: testPatientUserId, role: 'authenticated', aud: 'authenticated' })}, true)`;
+        return tx`SELECT * FROM public.request_telemedicine_join(${apt[0]?.id}::uuid)`;
+      });
+
+      await sql`
+        UPDATE public.appointments
+           SET status = 'completed'
+         WHERE id = ${apt[0]?.id}
+      `;
+
+      const session = await sql`SELECT status, ended_at FROM public.telemedicine_sessions WHERE id = ${context[0]?.session_id}`;
+      expect(session[0]?.status).toBe('ended');
+      expect(session[0]?.ended_at).toBeDefined();
+    });
+
     it('should expose only the assigned doctor encounter context', async () => {
       const apt = await sql`
         INSERT INTO public.appointments (patient_id, doctor_id, scheduled_at, duration_min, type, status, amount_charged, token_number)

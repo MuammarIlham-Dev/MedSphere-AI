@@ -7,7 +7,7 @@ import Ably from 'npm:ably';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-emergency-escalation-secret',
 };
 
 Deno.serve(async (req) => {

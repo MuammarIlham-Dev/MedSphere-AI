@@ -53,8 +53,7 @@ describe('utils', () => {
     });
 
     it('generates bookable slots correctly for a schedule', () => {
-      const targetDate = new Date();
-      targetDate.setHours(10, 0, 0, 0);
+      const targetDate = new Date('2026-10-04T10:00:00+06:00');
 
       const schedules = [
         {

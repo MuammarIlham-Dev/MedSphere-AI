@@ -11,6 +11,39 @@ export interface LabReportSummary {
   test_name: string | null;
 }
 
+export interface EncounterContext {
+  appointment_id: string;
+  patient_id: string;
+  doctor_id: string;
+  hospital_id: string | null;
+  scheduled_at: string;
+  appointment_status: string;
+  consultation_type: string;
+  reason: string | null;
+  patient_name: string;
+  digital_health_id: string;
+  dob: string | null;
+  gender: string | null;
+  blood_group: string | null;
+  city: string | null;
+  phone: string | null;
+}
+
+export interface LabTestOption {
+  id: string;
+  code: string;
+  name: string;
+  category: string | null;
+  sample_type: string | null;
+  price: number;
+}
+
+export interface LaboratoryOption {
+  id: string;
+  name: string;
+  city: string | null;
+}
+
 export interface RecordConsultationInput {
   appointmentId: string;
   title: string;
@@ -24,6 +57,13 @@ export interface RecordConsultationInput {
     duration_days: number;
     instructions: string;
   }[];
+  vitals: Record<string, string | number>;
+  subjectiveNotes: string;
+  objectiveNotes: string;
+  assessmentNotes: string;
+  carePlan: string;
+  followUpAt: string | null;
+  followUpInstructions: string;
 }
 
 export interface PrescriptionWithItems {
@@ -41,15 +81,18 @@ export const ehrService = {
       .order('created_at', { ascending: false })
       .limit(100)),
 
-  async prescriptions(patientId: string): Promise<PrescriptionWithItems[]> {
-    const rows = await unwrap<PrescriptionWithItems[]>(
+  encounterContext: (appointmentId: string): Promise<EncounterContext | null> =>
+    unwrap<EncounterContext[]>(supabase.rpc('get_doctor_encounter_context', {
+      p_appointment_id: appointmentId,
+    })).then((rows) => rows[0] ?? null),
+
+  prescriptions: async (patientId: string): Promise<PrescriptionWithItems[]> =>
+    unwrap<PrescriptionWithItems[]>(
       supabase.from('prescriptions')
         .select('*, prescription_items(*, medicines(name, generic_name))')
         .eq('patient_id', patientId)
         .order('created_at', { ascending: false })
-    );
-    return rows;
-  },
+    ),
 
   async labReports(patientId: string): Promise<LabReportSummary[]> {
     const orders = await unwrap<Array<{ id: string }>>(
@@ -72,6 +115,20 @@ export const ehrService = {
       test_name: Array.isArray(row.lab_tests) ? (row.lab_tests[0]?.name ?? null) : (row.lab_tests?.name ?? null),
     }));
   },
+
+  labTests: (): Promise<LabTestOption[]> =>
+    unwrap<LabTestOption[]>(supabase.from('lab_tests')
+      .select('id, code, name, category, sample_type, price')
+      .order('category')
+      .order('name')
+      .limit(500)),
+
+  laboratories: (): Promise<LaboratoryOption[]> =>
+    unwrap<LaboratoryOption[]>(supabase.from('laboratories')
+      .select('id, name, city')
+      .eq('verification', 'verified')
+      .order('name')
+      .limit(100)),
 
   searchMedicines: (query: string) =>
     unwrap<{ id: string; name: string }[]>(
@@ -108,18 +165,30 @@ export const ehrService = {
       start_date: input.start_date, end_date: input.end_date ?? null, is_active: input.is_active ?? true,
     }).select().single()),
 
-  deleteMedicationReminder: (id: string) =>
-    unwrap(supabase.from('medication_reminders').delete().eq('id', id)),
+  deleteMedicationReminder: (id: string) => unwrap(supabase.from('medication_reminders').delete().eq('id', id)),
 
-  recordConsultation: async (input: RecordConsultationInput): Promise<string> => {
-    const recordId = await unwrap<string>(supabase.rpc('record_consultation', {
+  recordConsultation: async (input: RecordConsultationInput): Promise<string> =>
+    unwrap<string>(supabase.rpc('record_consultation', {
       p_appointment_id: input.appointmentId,
       p_title: input.title,
       p_diagnosis: input.diagnosis,
       p_notes: input.notes,
       p_prescription_notes: input.prescriptionNotes || null,
       p_prescription_items: input.prescriptionItems.length > 0 ? input.prescriptionItems : null,
-    }));
-    return recordId;
-  }
+      p_vitals: Object.keys(input.vitals).length > 0 ? input.vitals : null,
+      p_subjective_notes: input.subjectiveNotes || null,
+      p_objective_notes: input.objectiveNotes || null,
+      p_assessment_notes: input.assessmentNotes || null,
+      p_care_plan: input.carePlan || null,
+      p_follow_up_at: input.followUpAt,
+      p_follow_up_instructions: input.followUpInstructions || null,
+    })),
+
+  createLabOrder: (input: { appointmentId: string; labId: string; priority: string; testIds: string[] }) =>
+    unwrap(supabase.rpc('create_lab_order_for_encounter', {
+      p_appointment_id: input.appointmentId,
+      p_lab_id: input.labId,
+      p_priority: input.priority,
+      p_test_ids: input.testIds,
+    })),
 };

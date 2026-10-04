@@ -1,113 +1,186 @@
+import { useState } from 'react';
 import { PageTransition } from '@/components/transitions/PageTransition';
 import { PageHeader, EmptyState, Skeleton, KpiCard } from '@/components/ui/KpiCard';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { IoAlertCircleOutline, IoPulseOutline, IoLocationOutline, IoNavigateOutline, IoCheckmarkCircleOutline, IoCloseCircleOutline, IoRefreshOutline } from 'react-icons/io5';
+import {
+  useAmbulanceTrack,
+  useEmergencyCurrentDispatch,
+  useEmergencyDispatchCandidates,
+  useEmergencyStatusAction,
+  useDispatchNearest,
+  useCancelEmergencyDispatch,
+} from '@/hooks/queries/useEmergencyQueries';
+import { useQuery } from '@tanstack/react-query';
 import { emergencyService } from '@/services/emergency.service';
 import { formatDateTime } from '@/lib/utils';
-import { useUiStore } from '@/stores/uiStore';
-import { IoAlertCircleOutline, IoPulseOutline, IoLocationOutline, IoNavigateOutline } from 'react-icons/io5';
-import { useRef, useEffect } from 'react';
-import { useReveal } from '@/lib/gsap';
-import { supabase } from '@/lib/supabase';
+
+function LiveLocation({ ambulanceId }: { ambulanceId: string | null }) {
+  const location = useAmbulanceTrack(ambulanceId ?? undefined);
+  if (!ambulanceId) return null;
+  return (
+    <div className="rounded-xl border border-slate-200 p-3 dark:border-white/10">
+      <div className="flex items-center gap-2 text-sm font-semibold">
+        <span className="h-2 w-2 animate-pulse rounded-full bg-success" /> Ambulance GPS
+      </div>
+      {location ? (
+        <>
+          <p className="mt-1 font-mono text-xs text-muted-foreground">{location.lat.toFixed(5)}, {location.lng.toFixed(5)}</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">Updated {formatDateTime(location.at)}</p>
+        </>
+      ) : (
+        <p className="mt-1 text-xs text-muted-foreground">Waiting for the driver's next GPS sample.</p>
+      )}
+    </div>
+  );
+}
 
 export default function EmergencyDashboard() {
-  const qc = useQueryClient();
-  const toast = useUiStore((s) => s.toast);
-  
+  const [selectedId, setSelectedId] = useState<string>();
   const { data: emergencies, isLoading } = useQuery({
     queryKey: ['active-emergencies'],
     queryFn: emergencyService.listActive,
+    refetchInterval: 15_000,
   });
-
-  const dispatch = useMutation({
-    mutationFn: ({ id, ambulanceId }: { id: string; ambulanceId: string }) => emergencyService.dispatchAmbulance(id, ambulanceId),
-    onSuccess: () => {
-      toast('success', 'Ambulance dispatched successfully.');
-      qc.invalidateQueries({ queryKey: ['active-emergencies'] });
-    },
-    onError: (e) => toast('error', e.message),
-  });
-
-  useEffect(() => {
-    const ch = supabase.channel('public:emergencies')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'emergencies' }, () => {
-        qc.invalidateQueries({ queryKey: ['active-emergencies'] });
-      })
-      .subscribe();
-    return () => { void supabase.removeChannel(ch); };
-  }, [qc]);
-
-  const rootRef = useRef<HTMLDivElement>(null);
-  useReveal(rootRef);
+  const selected = emergencies?.find((e) => e.id === selectedId);
+  const candidates = useEmergencyDispatchCandidates(selectedId);
+  const currentDispatch = useEmergencyCurrentDispatch(selectedId);
+  const dispatchNearest = useDispatchNearest();
+  const cancelDispatch = useCancelEmergencyDispatch();
+  const statusAction = useEmergencyStatusAction();
 
   return (
     <PageTransition>
-      <div ref={rootRef}>
-        <PageHeader 
-          title="Emergency Dispatch Dashboard" 
-          subtitle="Live SOS alerts and ambulance dispatch coordination" 
-        />
+      <PageHeader title="Emergency Dispatch" subtitle="Region-scoped SOS operations, nearest-ambulance routing, responder acknowledgement, and live vehicle telemetry." />
+      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+        <KpiCard label="Active SOS" value={emergencies?.filter((e) => e.status === 'active').length ?? 0} icon={<IoAlertCircleOutline className="h-5 w-5 text-danger-500" />} />
+        <KpiCard label="On response" value={emergencies?.filter((e) => ['dispatched','on_scene','transporting','arrived'].includes(e.status)).length ?? 0} icon={<IoNavigateOutline className="h-5 w-5 text-info-500" />} />
+        <KpiCard label="Awaiting acknowledgement" value={emergencies?.filter((e) => e.status === 'active').length ?? 0} icon={<IoPulseOutline className="h-5 w-5 text-warning-500" />} />
+      </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-6">
-          <KpiCard label="Active SOS" value={emergencies?.filter(e => e.status === 'active').length ?? 0} icon={<IoAlertCircleOutline className="w-5 h-5 text-danger-500" />} />
-          <KpiCard label="Dispatched" value={emergencies?.filter(e => e.status !== 'active' && e.status !== 'resolved').length ?? 0} icon={<IoNavigateOutline className="w-5 h-5 text-info-500" />} />
-        </div>
+      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <Card>
+          <CardHeader title="Live SOS feed" subtitle="Operators see only events within their dispatch region." />
+          <div className="divide-y divide-slate-100 dark:divide-white/5">
+            {isLoading && <div className="p-5"><Skeleton className="h-28 w-full" /></div>}
+            {!isLoading && emergencies?.length === 0 && <div className="p-10"><EmptyState title="No active emergencies" hint="New SOS events arrive through Ably, with database polling as the fallback." /></div>}
+            {emergencies?.map((e) => {
+              const dispatchable = e.status === 'active' && ['medical','accident','other'].includes(e.type);
+              return (
+                <button
+                  key={e.id}
+                  onClick={() => setSelectedId(e.id)}
+                  className={`block w-full p-5 text-left transition hover:bg-slate-50 dark:hover:bg-surface-dark-muted ${e.id === selectedId ? 'bg-brand-50/50 dark:bg-brand-950/20' : ''}`}
+                >
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge tone={e.status === 'active' ? 'danger' : 'info'}>{e.status.replace('_',' ').toUpperCase()}</Badge>
+                        <span className="text-sm font-semibold">SOS-{e.id.slice(0, 6).toUpperCase()}</span>
+                        <span className="text-xs text-muted-foreground">{e.city ?? 'National'}</span>
+                        <span className="text-xs text-muted-foreground">{formatDateTime(e.created_at)}</span>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-4 text-sm">
+                        <span className="flex items-center gap-2"><IoPulseOutline className="text-danger-500" />{e.type} emergency</span>
+                        <span className="flex items-center gap-2"><IoLocationOutline className="text-brand-500" />{e.lat.toFixed(4)}, {e.lng.toFixed(4)}</span>
+                      </div>
+                      {e.address && <p className="mt-1 truncate text-xs text-muted-foreground">{e.address}</p>}
+                    </div>
+                    <div className="shrink-0">
+                      {dispatchable && (
+                        <Button
+                          onClick={(event) => { event.stopPropagation(); dispatchNearest.mutate(e.id); }}
+                          loading={dispatchNearest.isPending && dispatchNearest.variables === e.id}
+                        >
+                          <IoNavigateOutline className="mr-2" /> Offer nearest
+                        </Button>
+                      )}
+                      {e.status === 'active' && !dispatchable && (
+                        <span className="rounded-xl border border-warning-200 bg-warning-50 px-3 py-2 text-xs font-medium text-warning-800 dark:border-warning-900 dark:bg-warning-950/30 dark:text-warning-300">
+                          {e.type === 'fire' ? 'Fire agency required' : e.type === 'police' ? 'Police agency required' : 'Specialized routing'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </Card>
 
         <Card>
-          <CardHeader title="Live SOS Feed" subtitle="Real-time emergency requests requiring immediate attention" />
-          <div className="divide-y divide-slate-100 dark:divide-white/5">
-            {isLoading && <div className="p-5"><Skeleton className="h-24 w-full" /></div>}
-            {!isLoading && emergencies?.length === 0 && (
-              <div className="p-10">
-                <EmptyState title="No active emergencies" hint="The network is quiet. New SOS alerts will appear here." />
-              </div>
-            )}
-            {emergencies?.map((e) => (
-              <div key={e.id} className="p-5 flex flex-col md:flex-row gap-4 justify-between md:items-center">
-                <div>
-                  <div className="flex items-center gap-3 mb-2">
-                    <Badge tone={e.status === 'active' ? 'danger' : 'info'}>{e.status.toUpperCase()}</Badge>
-                    <span className="text-sm font-semibold text-foreground">SOS-{e.id.slice(0, 6).toUpperCase()}</span>
-                    <span className="text-xs text-muted-foreground">{formatDateTime(e.created_at)}</span>
-                  </div>
-                  <div className="space-y-1 text-sm text-foreground">
-                    <div className="flex items-center gap-2">
-                      <IoPulseOutline className="text-danger-500" />
-                      <span>{e.type.charAt(0).toUpperCase() + e.type.slice(1)} Emergency</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <IoLocationOutline className="text-brand-500" />
-                      <span className="font-mono">[{e.lat.toFixed(4)}, {e.lng.toFixed(4)}]</span>
-                      {e.address && <span>— {e.address}</span>}
-                    </div>
-                  </div>
+          <CardHeader title={selected ? `SOS-${selected.id.slice(0,6).toUpperCase()}` : 'Select an emergency'} subtitle={selected ? 'Dispatch control center' : 'Choose an event from the live feed.'} />
+          {!selected && <div className="p-8"><EmptyState title="No event selected" hint="Select an SOS to view responder availability and the current dispatch state." /></div>}
+          {selected && (
+            <div className="space-y-4 p-5">
+              <div className="rounded-2xl bg-surface-muted p-4 dark:bg-surface-dark-muted">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-semibold">Current state</span>
+                  <Badge tone={selected.status === 'active' ? 'danger' : 'info'}>{selected.status.replace('_',' ').toUpperCase()}</Badge>
                 </div>
-                <div className="shrink-0 flex flex-col items-end gap-2">
-                  {e.status === 'active' ? (
-                    <Button 
-                      loading={dispatch.isPending}
-                      onClick={() => {
-                        const ambId = window.prompt("Enter Ambulance ID (e.g. AMB-001):");
-                        if (ambId) {
-                          dispatch.mutate({ id: e.id, ambulanceId: ambId });
-                        }
-                      }}
-                    >
-                      <IoNavigateOutline className="mr-2" />
-                      Dispatch Ambulance
+                <p className="mt-2 text-sm">{selected.type} emergency · {selected.city ?? 'National'}</p>
+                <a className="mt-2 flex items-center gap-2 text-xs text-brand-600 hover:underline" href={`https://www.google.com/maps/search/?api=1&query=${selected.lat},${selected.lng}`} target="_blank" rel="noreferrer">
+                  <IoLocationOutline /> Open incident coordinates
+                </a>
+              </div>
+
+              {currentDispatch.isLoading && <Skeleton className="h-20 w-full" />}
+              {currentDispatch.data && (
+                <div className="rounded-2xl border border-brand-200 p-4 dark:border-brand-900">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-semibold">Ambulance {currentDispatch.data.ambulance_id.slice(0,8)}…</p>
+                      <p className="text-xs text-muted-foreground">{currentDispatch.data.status === 'offered' ? 'Awaiting driver acknowledgement' : 'Driver accepted dispatch'}</p>
+                    </div>
+                    <Badge tone={currentDispatch.data.status === 'accepted' ? 'success' : 'warning'}>{currentDispatch.data.status.toUpperCase()}</Badge>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button variant="ghost" loading={cancelDispatch.isPending} onClick={() => cancelDispatch.mutate({ dispatchId: currentDispatch.data!.id, emergencyId: selected.id })}>
+                      <IoCloseCircleOutline className="mr-2" /> Cancel dispatch
                     </Button>
-                  ) : (
-                    <div className="text-sm text-right">
-                      <p className="font-semibold">Ambulance: {e.assigned_ambulance_id}</p>
-                      <p className="text-xs text-muted-foreground tracking-widest mt-1">ON SCENE ETA: LIVE</p>
-                    </div>
-                  )}
+                  </div>
+                  <div className="mt-3"><LiveLocation ambulanceId={selected.assigned_ambulance_id} /></div>
                 </div>
-              </div>
-            ))}
-          </div>
+              )}
+
+              {!currentDispatch.data && selected.status === 'active' && (
+                <div className="rounded-2xl border border-slate-200 p-4 dark:border-white/10">
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold">Nearest responders</p>
+                    <Button variant="ghost" onClick={() => void candidates.refetch()}><IoRefreshOutline /></Button>
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {candidates.isLoading && <Skeleton className="h-16 w-full" />}
+                    {!candidates.isLoading && candidates.data?.length === 0 && <p className="text-sm text-muted-foreground">No available ambulance is currently visible in the dispatch region.</p>}
+                    {candidates.data?.slice(0,5).map((c) => (
+                      <div key={c.ambulance_id} className="rounded-xl border border-slate-200 p-3 dark:border-white/10">
+                        <div className="flex items-center justify-between gap-3">
+                          <div><p className="text-sm font-semibold">{c.vehicle_no}</p><p className="text-xs text-muted-foreground">{c.hospital_name ?? 'Independent unit'} · {c.ambulance_type}</p></div>
+                          <span className="text-sm font-bold">{c.distance_km != null ? `${c.distance_km.toFixed(1)} km` : 'GPS unknown'}</span>
+                        </div>
+                        <p className="mt-1 text-[11px] text-muted-foreground">Last DB location {formatDateTime(c.location_updated_at)}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <Button className="mt-4 w-full" loading={dispatchNearest.isPending && dispatchNearest.variables === selected.id} onClick={() => dispatchNearest.mutate(selected.id)}>
+                    <IoNavigateOutline className="mr-2" /> Offer nearest available ambulance
+                  </Button>
+                </div>
+              )}
+
+              {selected.status === 'arrived' && (
+                <Button className="w-full" loading={statusAction.isPending} onClick={() => statusAction.mutate({ emergencyId: selected.id, status: 'resolved' })}>
+                  <IoCheckmarkCircleOutline className="mr-2" /> Mark emergency resolved
+                </Button>
+              )}
+
+              {['dispatched','on_scene','transporting'].includes(selected.status) && (
+                <LiveLocation ambulanceId={selected.assigned_ambulance_id} />
+              )}
+            </div>
+          )}
         </Card>
       </div>
     </PageTransition>

@@ -108,6 +108,7 @@ describe.skipIf(!integrationEnabled)('Doctor Tier Database Integration with Fixt
     if (testDoctorHospitalId) {
       await sql`DELETE FROM public.hospitals WHERE id = ${testDoctorHospitalId}`;
     }
+    await sql`DELETE FROM public.files WHERE owner_id = ${testDoctorUserId} AND path = 'doctor-test/credential.pdf'`;
     await sql`DELETE FROM public.profiles WHERE id IN (${testPatientUserId}, ${testDoctorUserId})`;
     await sql`DELETE FROM auth.users WHERE id IN (${testPatientUserId}, ${testDoctorUserId})`;
     await sql.end();

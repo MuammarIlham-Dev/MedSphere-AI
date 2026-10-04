@@ -291,10 +291,12 @@ export interface Emergency {
   lat: number;
   lng: number;
   address: string | null;
+  city: string | null;
   assigned_ambulance_id: string | null;
   assigned_hospital_id: string | null;
   log: Array<{ at: string; event: string; by?: string }>;
   created_at: string;
+  updated_at: string;
   resolved_at: string | null;
 }
 

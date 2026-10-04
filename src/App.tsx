@@ -32,6 +32,7 @@ const BloodBankDashboard = lazy(() => import('@/pages/services/blood-bank/BloodB
 const BloodDonation = lazy(() => import('@/pages/roles/citizen/BloodDonation'));
 const EmergencySOS = lazy(() => import('@/pages/emergency/EmergencySOS'));
 const EmergencyDashboard = lazy(() => import('@/pages/emergency/EmergencyDashboard'));
+const AmbulanceDriverDashboard = lazy(() => import('@/pages/emergency/AmbulanceDriverDashboard'));
 const GovDashboard = lazy(() => import('@/pages/government/GovDashboard'));
 const AdminDashboard = lazy(() => import('@/pages/roles/admin/AdminDashboard'));
 const LabDashboard = lazy(() => import('@/pages/services/laboratory/LabDashboard'));
@@ -48,7 +49,7 @@ function RoleHome() {
   const home: Record<string, string> = {
     citizen: '/app/citizen', doctor: '/app/doctor', hospital: '/app/hospital',
     blood_bank: '/app/blood', organ_authority: '/app/organ',
-    emergency_operator: '/app/emergency-dispatch', government: '/app/gov', researcher: '/app/gov',
+    emergency_operator: '/app/emergency-dispatch', ambulance_driver: '/app/ambulance', government: '/app/gov', researcher: '/app/gov',
     laboratory: '/app/laboratory', pharmacy: '/app/pharmacy',
     admin: '/app/admin', super_admin: '/app/admin',
   };
@@ -90,6 +91,7 @@ export default function App() {
                 <Route path="/app/blood-network" element={<RoleGate allow={['citizen']}><BloodDonation /></RoleGate>} />
                 <Route path="/app/emergency" element={<RoleGate allow={['citizen', 'doctor']}><EmergencySOS /></RoleGate>} />
                 <Route path="/app/emergency-dispatch" element={<RoleGate allow={['emergency_operator', 'admin', 'super_admin']}><EmergencyDashboard /></RoleGate>} />
+                <Route path="/app/ambulance" element={<RoleGate allow={['ambulance_driver']}><AmbulanceDriverDashboard /></RoleGate>} />
                 <Route path="/app/gov" element={<RoleGate allow={['government', 'researcher', 'admin', 'super_admin']}><GovDashboard /></RoleGate>} />
                 <Route path="/app/admin" element={<RoleGate allow={['admin', 'super_admin']}><AdminDashboard /></RoleGate>} />
                 <Route path="/app/laboratory" element={<RoleGate allow={['laboratory']}><LabDashboard /></RoleGate>} />

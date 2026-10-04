@@ -152,10 +152,13 @@ pages → components → hooks (TanStack Query) → services (typed API) → sup
 | `notify:user:{id}` | Priority notifications | owner subscribes |
 | `presence:doctors` | Online doctor presence | everyone subscribes, doctors enter |
 | `chat:{conversationId}` | Messages, typing, read receipts | participants |
-| `track:ambulance:{id}` | Live GPS stream | driver publishes, operators/citizens subscribe |
-| `sos:{city}` / `sos:*` | Emergency alerts | citizens publish, operators/government subscribe |
+| `track:ambulance:{id}` | Live GPS stream | assigned driver publishes; authorized operators/citizen receive |
+| `sos:operator:{city}` | Regional SOS dispatch events | authorized dispatch operators/government |
+| `sos:emergency:{id}` | Per-incident lifecycle updates | reporter + authorized responders |
+| `sos:ambulance:{id}` | Dispatch offers/lifecycle updates | assigned ambulance driver |
+| `sos:*` / generic tracking | Legacy realtime surface | retained only for non-emergency modules; Emergency SOS uses the scoped channels above |
 
-Supabase Realtime (postgres changes) is used for low-frequency data sync (notifications table, emergency status). Ably is used for high-frequency ephemeral streams (chat, typing, tracking, presence) — this keeps Postgres load flat at national scale.
+Supabase remains authoritative for durable emergency state and auditability. Ably carries high-frequency ambulance GPS and low-latency SOS dispatch/lifecycle events; database polling remains the recovery path when realtime is unavailable. Emergency SOS mutations are server-authorized through Supabase RPCs and a trusted Ably event gateway.
 
 ---
 

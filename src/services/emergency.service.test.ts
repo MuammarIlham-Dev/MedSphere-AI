@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { emergencyService } from './emergency.service';
 import { supabase } from '@/lib/supabase';
-import { publish } from '@/lib/ably';
+import { publishEmergencyRealtime } from './emergencyRealtime.service';
 
 vi.mock('@/lib/supabase', () => ({
   supabase: {
@@ -13,8 +13,8 @@ vi.mock('@/lib/supabase', () => ({
   }
 }));
 
-vi.mock('@/lib/ably', () => ({
-  publish: vi.fn(),
+vi.mock('./emergencyRealtime.service', () => ({
+  publishEmergencyRealtime: vi.fn().mockResolvedValue(undefined),
 }));
 
 describe('emergency.service', () => {
@@ -34,10 +34,11 @@ describe('emergency.service', () => {
       p_lat: 10,
       p_lng: 20,
       p_type: 'medical',
-      p_address: null
+      p_address: null,
+      p_city: 'Dhaka',
     });
-    
-    expect(publish).toHaveBeenCalledWith('sos:Dhaka', 'sos:new', { emergency: mockEmergency });
+
+    expect(publishEmergencyRealtime).toHaveBeenCalledWith('sos_created', 'em-1');
     expect(result).toEqual(mockEmergency);
   });
 });

@@ -45,7 +45,6 @@ const NAV: Partial<Record<Role, NavItem[]>> = {
     { to: '/app/hospital/queue', label: 'Clinical Queue', icon: <IoCalendarOutline /> },
     { to: '/app/hospital/blood', label: 'Blood Requisition', icon: <IoWaterOutline /> },
     { to: '/app/organ', label: 'Organ Coordination', icon: <IoBodyOutline /> },
-    { to: '/app/blood', label: 'Blood Bank', icon: <IoWaterOutline /> },
   ],
   blood_bank: [{ to: '/app/blood', label: 'Blood Bank', icon: <IoWaterOutline /> }],
   organ_authority: [{ to: '/app/organ', label: 'Matching Engine', icon: <IoBodyOutline /> }],

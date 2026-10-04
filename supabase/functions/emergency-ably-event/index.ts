@@ -211,6 +211,28 @@ Deno.serve(async (req) => {
       .publish('emergency:update', payload);
   }
 
+  if (action === 'status_changed' || action === 'agency_dispatches_changed') {
+    const { data: activeDispatches } = await service
+      .from('emergency_agency_dispatches')
+      .select('id,agency_id,status')
+      .eq('emergency_id', emergency.id)
+      .in('status', ['offered','acknowledged','en_route','on_scene']);
+
+    for (const dispatch of activeDispatches ?? []) {
+      await rest.channels
+        .get(`sos:agency:${dispatch.agency_id}`)
+        .publish('emergency:update', {
+          emergencyId: emergency.id,
+          action,
+          status: emergency.status,
+          dispatchId: dispatch.id,
+          agencyId: dispatch.agency_id,
+          agencyStatus: dispatch.status,
+          at: new Date().toISOString(),
+        });
+    }
+  }
+
   return new Response(JSON.stringify({ ok: true }), {
     headers: { ...CORS, 'Content-Type': 'application/json' },
   });

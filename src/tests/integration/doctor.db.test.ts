@@ -416,7 +416,14 @@ describe.skipIf(!integrationEnabled)('Doctor Tier Database Integration with Fixt
             ${'All good'}::text,
             ${'Notes'}::text,
             ${'Take meds'}::text,
-            ${sql.json(rxItems)}
+            ${sql.json(rxItems)},
+            ${sql.json({ temperature_c: 37.2, heart_rate_bpm: 78 })},
+            ${'Fever resolved'}::text,
+            ${'No acute findings'}::text,
+            ${'Stable'}::text,
+            ${'Continue hydration'}::text,
+            ${(new Date(Date.now() + 7 * 86400000)).toISOString()}::timestamptz,
+            ${'Return if symptoms recur'}::text
           )
         `;
         recordId = result[0]?.record_consultation;
@@ -427,6 +434,12 @@ describe.skipIf(!integrationEnabled)('Doctor Tier Database Integration with Fixt
       // Verify medical record
       const rec = await sql`SELECT * FROM public.medical_records WHERE id = ${recordId!}`;
       expect(rec[0]?.title).toBe('Final Checkup');
+      expect(rec[0]?.vitals).toEqual({ temperature_c: 37.2, heart_rate_bpm: 78 });
+      expect(rec[0]?.subjective_notes).toBe('Fever resolved');
+      expect(rec[0]?.assessment_notes).toBe('Stable');
+      expect(rec[0]?.care_plan).toBe('Continue hydration');
+      expect(rec[0]?.follow_up_instructions).toBe('Return if symptoms recur');
+
 
       // Verify prescription
       const rx = await sql`SELECT * FROM public.prescriptions WHERE appointment_id = ${apt[0]?.id}`;
@@ -440,6 +453,25 @@ describe.skipIf(!integrationEnabled)('Doctor Tier Database Integration with Fixt
       // Verify appointment is completed
       const updatedApt = await sql`SELECT status FROM public.appointments WHERE id = ${apt[0]?.id}`;
       expect(updatedApt[0]?.status).toBe('completed');
+    });
+
+    it('should expose only the assigned doctor encounter context', async () => {
+      const apt = await sql`
+        INSERT INTO public.appointments (patient_id, doctor_id, scheduled_at, duration_min, type, status, amount_charged, token_number)
+        VALUES (${testPatientId}, ${testDoctorId}, NOW(), 15, 'clinic', 'checked_in', 500, 105)
+        RETURNING id
+      `;
+
+      const context = await sql.begin(async (tx) => {
+        await tx`SET LOCAL ROLE authenticated`;
+        await tx`SELECT set_config('request.jwt.claims', ${JSON.stringify({ sub: testDoctorUserId, role: 'authenticated', aud: 'authenticated' })}, true)`;
+        return tx`SELECT * FROM public.get_doctor_encounter_context(${apt[0]?.id}::uuid)`;
+      });
+
+      expect(context[0]?.patient_id).toBe(testPatientId);
+      expect(context[0]?.doctor_id).toBe(testDoctorId);
+      expect(context[0]?.appointment_status).toBe('checked_in');
+      expect(context[0]?.digital_health_id).toBe('DHI-PATIENT-123');
     });
 
     it('should reject duplicate consultations for the same appointment', async () => {

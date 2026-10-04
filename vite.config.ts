@@ -36,35 +36,12 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: '/offline.html',
-        navigateFallbackDenylist: [/^\/app|^\/login|^\/$/, /^\/api/],
+        navigateFallbackDenylist: [/^\/app/, /^\/login/, /^\/$/, /^\/api/],
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
-        runtimeCaching: [
-          {
-            // App shell + pages: network-first with offline fallback
-            urlPattern: ({ request }) => request.mode === 'navigate',
-            handler: 'NetworkFirst',
-            options: { cacheName: 'pages', networkTimeoutSeconds: 4 },
-          },
-          {
-            // Supabase reads: stale-while-revalidate so records work offline
-            urlPattern: ({ url }) => url.hostname.endsWith('.supabase.co') && url.pathname.startsWith('/rest/v1'),
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'api-reads',
-              expiration: { maxEntries: 200, maxAgeSeconds: 86400 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          {
-            urlPattern: ({ url }) => url.hostname.endsWith('.supabase.co') && url.pathname.startsWith('/storage/v1'),
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'storage',
-              expiration: { maxEntries: 100, maxAgeSeconds: 604800 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-        ],
+        // Never cache authenticated Supabase responses or replay generic healthcare
+        // mutations. Offline support must be implemented as explicit, domain-safe
+        // commands with idempotency, not by caching/replaying HTTP requests.
+        runtimeCaching: [],
       },
     }),
   ],

@@ -38,6 +38,7 @@ Deno.serve(async (req) => {
 
   if (role === 'emergency_operator') {
     capability[`sos:operator:${profile?.city ?? 'national'}`] = ['subscribe'];
+    capability['track:ambulance:*'] = ['subscribe'];
   }
 
   if (['admin','super_admin'].includes(role)) {
@@ -73,8 +74,9 @@ Deno.serve(async (req) => {
     const emergency = emergencies?.[0];
     if (emergency?.id) {
       capability[`sos:emergency:${emergency.id}`] = ['subscribe'];
+      // Ambulance UUIDs are opaque; grant read access only while this citizen has an active emergency.
       if (emergency.assigned_ambulance_id) {
-        capability[`track:ambulance:${emergency.assigned_ambulance_id}`] = ['subscribe'];
+        capability['track:ambulance:*'] = ['subscribe'];
       }
     }
   }

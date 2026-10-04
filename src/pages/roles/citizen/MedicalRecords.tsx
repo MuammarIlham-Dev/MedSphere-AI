@@ -4,6 +4,8 @@ import { PageHeader, Skeleton, EmptyState } from '@/components/ui/KpiCard';
 import { PageTransition } from '@/components/transitions/PageTransition';
 import { formatDateTime } from '@/lib/utils';
 import { useMyMedicalRecords, useMyLabReports, useMyPrescriptions } from '@/hooks/queries/useEhrQueries';
+import { MedicationReminderPanel } from '@/components/ehr/MedicationReminderPanel';
+import { PrescriptionSharingPanel } from '@/components/ehr/PrescriptionSharingPanel';
 import { useRef } from 'react';
 import { useReveal } from '@/lib/gsap';
 import { IoDocumentTextOutline, IoMedkitOutline, IoFlaskOutline } from 'react-icons/io5';
@@ -22,6 +24,9 @@ export function MedicalRecords() {
           title="My Health Profile" 
           subtitle="Access your medical records, lab reports, and prescriptions securely." 
         />
+
+        <MedicationReminderPanel />
+        <PrescriptionSharingPanel />
 
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Prescriptions Section */}

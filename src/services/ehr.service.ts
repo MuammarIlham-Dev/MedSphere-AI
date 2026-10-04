@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { unwrap } from '@/lib/api';
-import type { MedicalRecord } from '@/types';
+import type { MedicalRecord, MedicationReminder } from '@/types';
 
 export interface LabReportSummary {
   id: string;
@@ -80,6 +80,36 @@ export const ehrService = {
         .ilike('name', `%${query}%`)
         .limit(20)
     ),
+
+  pharmacies: () =>
+    unwrap<Array<{ id: string; name: string; city: string | null }>>(
+      supabase.from('pharmacies').select('id, name, city').eq('verification', 'verified').order('name').limit(100)
+    ),
+
+  prescriptionShares: (patientId: string) =>
+    unwrap<any[]>(
+      supabase.from('prescription_pharmacy_shares')
+        .select('id, prescription_id, pharmacy_id, status, created_at, updated_at, pharmacy:pharmacy_id(id, name, city)')
+        .eq('patient_id', patientId).order('created_at', { ascending: false }).limit(100)
+    ).then((rows) => rows.map((row) => ({ ...row, pharmacy: Array.isArray(row.pharmacy) ? row.pharmacy[0] : row.pharmacy }))),
+
+  sharePrescription: (prescriptionId: string, pharmacyId: string) =>
+    unwrap(supabase.rpc('share_prescription_with_pharmacy', { p_prescription_id: prescriptionId, p_pharmacy_id: pharmacyId })),
+
+  cancelPrescriptionShare: (shareId: string) =>
+    unwrap(supabase.rpc('cancel_prescription_pharmacy_share', { p_share_id: shareId })),
+
+  medicationReminders: (patientId: string): Promise<MedicationReminder[]> =>
+    unwrap<MedicationReminder[]>(supabase.from('medication_reminders').select('*').eq('patient_id', patientId).order('start_date', { ascending: false })),
+
+  createMedicationReminder: (patientId: string, input: { label: string; times: string[]; start_date: string; end_date?: string | null; is_active?: boolean }) =>
+    unwrap<MedicationReminder>(supabase.from('medication_reminders').insert({
+      patient_id: patientId, label: input.label, times: input.times,
+      start_date: input.start_date, end_date: input.end_date ?? null, is_active: input.is_active ?? true,
+    }).select().single()),
+
+  deleteMedicationReminder: (id: string) =>
+    unwrap(supabase.from('medication_reminders').delete().eq('id', id)),
 
   recordConsultation: async (input: RecordConsultationInput): Promise<string> => {
     const recordId = await unwrap<string>(supabase.rpc('record_consultation', {

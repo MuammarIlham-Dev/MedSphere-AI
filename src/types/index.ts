@@ -128,6 +128,16 @@ export interface Appointment {
   patient_name?: string;
 }
 
+export interface MedicationReminder {
+  id: string;
+  patient_id: string;
+  label: string;
+  times: string[];
+  start_date: string;
+  end_date: string | null;
+  is_active: boolean;
+}
+
 export interface MedicalRecord {
   id: string;
   patient_id: string;

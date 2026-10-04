@@ -72,21 +72,22 @@ Deno.serve(async (req) => {
       ? (!profile?.city || !emergency.city || profile.city === emergency.city)
       : true;
   } else if (role === 'ambulance_driver') {
-    const { data: ownAmbulance } = await service
-      .from('ambulances')
-      .select('id')
-      .eq('driver_id', user.id)
-      .eq('id', emergency.assigned_ambulance_id)
-      .maybeSingle();
-
     const { data: dispatch } = await service
       .from('emergency_dispatches')
       .select('driver_id,ambulance_id,status')
       .eq('emergency_id', emergency.id)
-      .in('status', ['offered','accepted'])
       .order('offered_at', { ascending:false })
       .limit(1)
       .maybeSingle();
+
+    const { data: ownAmbulance } = dispatch?.ambulance_id
+      ? await service
+          .from('ambulances')
+          .select('id')
+          .eq('driver_id', user.id)
+          .eq('id', dispatch.ambulance_id)
+          .maybeSingle()
+      : { data: null };
 
     allowed = !!ownAmbulance && !!dispatch && dispatch.driver_id === user.id && (
       action === 'dispatch_accepted' ||

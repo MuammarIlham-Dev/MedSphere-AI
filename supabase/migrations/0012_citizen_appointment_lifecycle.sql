@@ -299,3 +299,24 @@ $$;
 
 REVOKE ALL ON FUNCTION public.transition_appointment(uuid, appointment_status, text) FROM public;
 GRANT EXECUTE ON FUNCTION public.transition_appointment(uuid, appointment_status, text) TO authenticated;
+
+
+-- Keep the denormalized Dhaka service-day invariant synchronized for every server-side write.
+CREATE OR REPLACE FUNCTION public.sync_appointment_day()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  NEW.day := (NEW.scheduled_at AT TIME ZONE 'Asia/Dhaka')::date;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS tr_sync_appointment_day ON public.appointments;
+CREATE TRIGGER tr_sync_appointment_day
+BEFORE INSERT OR UPDATE OF scheduled_at
+ON public.appointments
+FOR EACH ROW
+EXECUTE FUNCTION public.sync_appointment_day();

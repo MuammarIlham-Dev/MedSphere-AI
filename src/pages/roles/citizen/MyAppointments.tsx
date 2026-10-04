@@ -21,7 +21,6 @@ import {
   XCircle,
   CheckCircle2,
   ArrowRight,
-  RefreshCw,
   RotateCcw,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';

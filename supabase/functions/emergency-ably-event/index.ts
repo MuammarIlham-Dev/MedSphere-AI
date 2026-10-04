@@ -76,10 +76,11 @@ Deno.serve(async (req) => {
     allowed = true;
   } else if (role === 'citizen') {
     allowed = emergency.reporter_id === user.id && action === 'sos_created';
-  } else if (role === 'emergency_operator' || role === 'government') {
-    allowed = action !== 'sos_created'
-      ? (!profile?.city || !emergency.city || profile.city === emergency.city)
-      : true;
+  } else if (role === 'emergency_operator') {
+    allowed = (
+      ['dispatch_offered','dispatch_cancelled','status_changed','agency_dispatches_changed','agency_dispatch_cancelled'].includes(action)
+      && (!profile?.city || !emergency.city || profile.city === emergency.city)
+    );
   } else if (role === 'ambulance_driver') {
     const { data: dispatch } = await service
       .from('emergency_dispatches')

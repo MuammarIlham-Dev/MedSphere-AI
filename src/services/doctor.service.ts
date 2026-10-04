@@ -58,7 +58,6 @@ export const doctorService = {
     const sha256 = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
 
     let fileId: string | null = null;
-    let fileId: string | null = null;
     try {
       const fileRow = await unwrap<{ id: string }>(supabase.from('files').insert({
         owner_id: user.id,
@@ -70,7 +69,6 @@ export const doctorService = {
         purpose: 'doctor_credential',
       }).select('id').single());
 
-      fileId = fileRow.id;
       fileId = fileRow.id;
       return await unwrap<DoctorCredential>(supabase.rpc('submit_doctor_credential', {
         p_credential_type: input.credentialType,

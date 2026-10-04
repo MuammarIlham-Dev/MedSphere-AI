@@ -284,6 +284,7 @@ AS $$
 DECLARE
   s public.telemedicine_sessions%rowtype;
   a public.appointments%rowtype;
+  was_active boolean := false;
 BEGIN
   SELECT ts.* INTO s
     FROM public.telemedicine_sessions ts
@@ -293,23 +294,34 @@ BEGIN
    FOR UPDATE;
 
   IF NOT FOUND THEN RAISE EXCEPTION 'telemedicine session not found'; END IF;
+  IF s.status = 'ended' THEN RETURN s; END IF;
 
   SELECT * INTO a FROM public.appointments WHERE id = s.appointment_id;
 
   IF auth.uid() = a.patient_id THEN
-    UPDATE public.telemedicine_sessions SET patient_active = false, patient_last_seen_at = now(), updated_at = now() WHERE id = s.id RETURNING * INTO s;
+    was_active := s.patient_active;
+    UPDATE public.telemedicine_sessions
+       SET patient_active = false, patient_last_seen_at = now(), updated_at = now()
+     WHERE id = s.id
+     RETURNING * INTO s;
   ELSE
-    UPDATE public.telemedicine_sessions SET doctor_active = false, doctor_last_seen_at = now(), updated_at = now() WHERE id = s.id RETURNING * INTO s;
+    was_active := s.doctor_active;
+    UPDATE public.telemedicine_sessions
+       SET doctor_active = false, doctor_last_seen_at = now(), updated_at = now()
+     WHERE id = s.id
+     RETURNING * INTO s;
   END IF;
 
-  INSERT INTO public.audit_logs(actor_id, action, table_name, record_id, new_data)
-  VALUES (
-    auth.uid(),
-    'telemedicine.left',
-    'telemedicine_sessions',
-    s.id::text,
-    jsonb_build_object('appointment_id', s.appointment_id)
-  );
+  IF was_active THEN
+    INSERT INTO public.audit_logs(actor_id, action, table_name, record_id, new_data)
+    VALUES (
+      auth.uid(),
+      'telemedicine.left',
+      'telemedicine_sessions',
+      s.id::text,
+      jsonb_build_object('appointment_id', s.appointment_id)
+    );
+  END IF;
 
   RETURN s;
 END;

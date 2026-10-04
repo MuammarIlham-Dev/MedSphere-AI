@@ -3,13 +3,14 @@ import { unwrap } from '@/lib/api';
 import { publishEmergencyRealtime } from './emergencyRealtime.service';
 import type {
   EmergencyAgency,
+  EmergencyAgencyMembership,
   EmergencyAgencyDispatch,
   EmergencyAgencyDispatchView,
 } from '@/types/emergencyAgency';
 
 export const emergencyAgencyService = {
   myAgencies: () =>
-    unwrap<EmergencyAgency[]>(
+    unwrap<EmergencyAgencyMembership[]>(
       supabase.rpc('get_my_emergency_agencies'),
     ),
 

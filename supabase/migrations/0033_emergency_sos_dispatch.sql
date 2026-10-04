@@ -334,6 +334,14 @@ begin
     e.id, candidate.id, auth.uid(), candidate.driver_id, 'offered', distance
   ) returning * into result;
 
+  update public.emergencies
+  set updated_at=now(),
+      log=coalesce(log,'[]'::jsonb) || jsonb_build_array(jsonb_build_object(
+        'at',now(),'event','dispatch_offered','by',auth.uid(),
+        'ambulance_id',candidate.id
+      ))
+  where id=e.id;
+
   insert into public.audit_logs(actor_id, action, table_name, record_id, old_data, new_data)
   values (
     auth.uid(),
@@ -507,6 +515,14 @@ begin
   set status='available', updated_at=now()
   where id=d.ambulance_id and driver_id=auth.uid();
 
+  update public.emergencies
+  set updated_at=now(),
+      log=coalesce(log,'[]'::jsonb) || jsonb_build_array(jsonb_build_object(
+        'at',now(),'event','dispatch_declined','by',auth.uid(),
+        'ambulance_id',d.ambulance_id
+      ))
+  where id=d.emergency_id;
+
   return d;
 end;
 $$;
@@ -526,8 +542,8 @@ begin
   end if;
 
   select * into d from public.emergency_dispatches where id=p_dispatch_id for update;
-  if not found or d.status not in ('offered','accepted') then
-    raise exception 'Dispatch is no longer active';
+  if not found or d.status <> 'offered' then
+    raise exception 'Only an unacknowledged dispatch can be cancelled';
   end if;
 
   update public.emergency_dispatches
@@ -602,6 +618,8 @@ begin
 
   update public.emergencies
   set status=p_status,
+      assigned_ambulance_id=case when p_status='cancelled' then null else assigned_ambulance_id end,
+      assigned_hospital_id=case when p_status='cancelled' then null else assigned_hospital_id end,
       resolved_at=case when p_status='resolved' then now() else resolved_at end,
       updated_at=now(),
       log=coalesce(log,'[]'::jsonb) || jsonb_build_array(jsonb_build_object(

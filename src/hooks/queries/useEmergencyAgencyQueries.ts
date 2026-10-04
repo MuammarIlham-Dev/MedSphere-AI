@@ -60,6 +60,29 @@ export function useEmergencyAgencyDispatches(emergencyId: string | undefined) {
   return query;
 }
 
+export function useMyEmergencyAgencyResponse(emergencyId: string | undefined) {
+  const qc = useQueryClient();
+  const query = useQuery({
+    queryKey: ['my-emergency-agency-response', emergencyId],
+    queryFn: () => emergencyAgencyService.myEmergencyResponse(emergencyId!),
+    enabled: !!emergencyId,
+    staleTime: 5_000,
+    refetchInterval: 15_000,
+  });
+
+  useEffect(() => {
+    if (!emergencyId) return;
+    const ch = emergencyChannel(`sos:emergency:${emergencyId}`);
+    const onUpdate = () => {
+      void qc.invalidateQueries({ queryKey: ['my-emergency-agency-response', emergencyId] });
+    };
+    void ch.subscribe('emergency:update', onUpdate);
+    return () => { void ch.unsubscribe('emergency:update', onUpdate); };
+  }, [emergencyId, qc]);
+
+  return query;
+}
+
 export function useDispatchRequiredEmergencyAgencies() {
   const toast = useUiStore((s) => s.toast);
   const qc = useQueryClient();

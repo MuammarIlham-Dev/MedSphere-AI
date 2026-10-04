@@ -17,6 +17,7 @@ import {
   useEmergencyAgencyDispatches,
   useDispatchRequiredEmergencyAgencies,
   useEmergencyAgencyCancelAction,
+  useResolveNonAmbulanceEmergency,
 } from '@/hooks/queries/useEmergencyAgencyQueries';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { emergencyService } from '@/services/emergency.service';
@@ -76,6 +77,7 @@ export default function EmergencyDashboard() {
   const cancelDispatch = useCancelEmergencyDispatch();
   const cancelAgencyDispatch = useEmergencyAgencyCancelAction();
   const statusAction = useEmergencyStatusAction();
+  const resolveNonAmbulance = useResolveNonAmbulanceEmergency();
 
   return (
     <PageTransition>
@@ -258,6 +260,25 @@ export default function EmergencyDashboard() {
                   <IoCheckmarkCircleOutline className="mr-2" /> Mark emergency resolved
                 </Button>
               )}
+
+              {(() => {
+                const required = selected.type === 'fire' ? ['fire','ems'] : selected.type === 'police' ? ['police','ems'] : [];
+                const latest = new Map<string, string>();
+                for (const row of agencyDispatches.data ?? []) latest.set(row.agency_type, row.status);
+                const ready = selected.status === 'active'
+                  && !selected.assigned_ambulance_id
+                  && required.length > 0
+                  && required.every((type) => latest.get(type) === 'completed');
+                return ready ? (
+                  <Button
+                    className="w-full"
+                    loading={resolveNonAmbulance.isPending}
+                    onClick={() => resolveNonAmbulance.mutate(selected.id)}
+                  >
+                    <IoCheckmarkCircleOutline className="mr-2" /> Resolve agency incident
+                  </Button>
+                ) : null;
+              })()}
 
               {['dispatched','on_scene','transporting'].includes(selected.status) && (
                 <LiveLocation ambulanceId={selected.assigned_ambulance_id} />

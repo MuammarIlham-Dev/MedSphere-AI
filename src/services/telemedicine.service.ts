@@ -19,18 +19,15 @@ export interface TelemedicineJoinContext {
 export const telemedicineService = {
   videoAppointments: (): Promise<Appointment[]> =>
     unwrap<Appointment[]>(supabase.from('appointments')
-      .select('*, doctors(specialty, profiles(full_name)), profiles!appointments_patient_id_fkey(full_name)')
+      .select('*, doctors(specialty)')
       .eq('type', 'video')
       .not('status', 'in', '("cancelled","no_show")')
       .order('scheduled_at', { ascending: true })
       .limit(100)
     ).then((rows: any[]) => rows.map((r) => ({
       ...r,
-      doctor_name: r.doctors?.profiles?.full_name,
       specialty: r.doctors?.specialty,
-      patient_name: r.profiles?.full_name,
       doctors: undefined,
-      profiles: undefined,
     }))),
 
   join: async (appointmentId: string): Promise<TelemedicineJoinContext> => {

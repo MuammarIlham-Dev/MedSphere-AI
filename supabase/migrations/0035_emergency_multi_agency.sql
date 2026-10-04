@@ -107,10 +107,6 @@ for select using (
     public.current_role() = 'government'
     and exists (select 1 from public.emergencies e where e.id = emergency_id)
   )
-  or exists (
-    select 1 from public.emergencies e
-    where e.id = emergency_id and e.reporter_id = auth.uid()
-  )
 );
 
 -- No direct client writes: all agency state changes go through RPCs.

@@ -70,15 +70,13 @@ AS $$
 DECLARE
   a public.appointments%rowtype;
   d public.doctors%rowtype;
-  p public.profiles%rowtype;
+  caller_profile public.profiles%rowtype;
   other_profile public.profiles%rowtype;
   s public.telemedicine_sessions%rowtype;
   role_name text;
   expires_at_calc timestamptz;
 BEGIN
-  IF auth.uid() IS NULL THEN
-    RAISE EXCEPTION 'authentication required';
-  END IF;
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'authentication required'; END IF;
 
   SELECT *
     INTO a
@@ -87,20 +85,17 @@ BEGIN
      AND type = 'video'
    FOR UPDATE;
 
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'video appointment not found';
-  END IF;
+  IF NOT FOUND THEN RAISE EXCEPTION 'video appointment not found'; END IF;
 
-  SELECT *
-    INTO d
-    FROM public.doctors
-   WHERE id = a.doctor_id;
+  SELECT * INTO d FROM public.doctors WHERE id = a.doctor_id;
+  SELECT * INTO caller_profile FROM public.profiles WHERE id = auth.uid();
 
   IF a.patient_id = auth.uid() THEN
     role_name := 'patient';
+    SELECT * INTO other_profile FROM public.profiles WHERE id = d.profile_id;
   ELSIF d.profile_id = auth.uid() THEN
     role_name := 'doctor';
-
+    SELECT * INTO other_profile FROM public.profiles WHERE id = a.patient_id;
     IF NOT public.doctor_verification_eligible(d.id) THEN
       RAISE EXCEPTION 'doctor verification is not currently active';
     END IF;
@@ -123,11 +118,6 @@ BEGIN
   IF now() > expires_at_calc THEN
     RAISE EXCEPTION 'telemedicine session window has expired';
   END IF;
-
-  SELECT * INTO p FROM public.profiles WHERE id = a.patient_id;
-  SELECT * INTO other_profile
-    FROM public.profiles
-   WHERE id = CASE WHEN role_name = 'patient' THEN d.profile_id ELSE a.patient_id END;
 
   SELECT *
     INTO s
@@ -162,21 +152,14 @@ BEGIN
     s.id,
     a.id,
     role_name,
-    CASE WHEN role_name = 'patient' THEN p.full_name ELSE d_profile.full_name END,
+    caller_profile.full_name,
     other_profile.full_name,
     s.room_name,
     s.room_url,
     s.status,
     a.scheduled_at,
     a.duration_min,
-    s.expires_at
-  FROM (SELECT other_profile) dummy
-  CROSS JOIN LATERAL (
-    SELECT d.profile_id
-  ) dp
-  CROSS JOIN public.profiles AS d_profile
-  WHERE d_profile.id = CASE WHEN role_name = 'patient' THEN auth.uid() ELSE a.patient_id END
-  LIMIT 1;
+    s.expires_at;
 END;
 $$;
 

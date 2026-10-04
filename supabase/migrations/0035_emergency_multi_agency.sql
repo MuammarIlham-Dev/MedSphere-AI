@@ -393,7 +393,8 @@ declare
   count_escalated int := 0;
   distance numeric(8,2);
 begin
-  if public.current_role() not in ('emergency_operator','admin','super_admin') then
+  if public.current_role() not in ('emergency_operator','admin','super_admin')
+     and coalesce(auth.role(),'') <> 'service_role' then
     raise exception 'Unauthorized emergency escalation access';
   end if;
 
@@ -430,8 +431,8 @@ begin
     limit 1;
 
     insert into public.audit_logs(actor_id,action,table_name,record_id,new_data)
-    values(auth.uid(),'emergency_agency_dispatch.timed_out','emergency_agency_dispatches',expired.id,
-      jsonb_build_object('emergency_id',e.id,'agency_id',expired.agency_id));
+    values(coalesce(auth.uid(),expired.requested_by),'emergency_agency_dispatch.timed_out','emergency_agency_dispatches',expired.id,
+      jsonb_build_object('emergency_id',e.id,'agency_id',expired.agency_id,'escalated_by',auth.uid()));
 
     if next_agency.id is not null then
       if next_agency.lat is not null and next_agency.lng is not null then
@@ -445,7 +446,7 @@ begin
       insert into public.emergency_agency_dispatches(
         emergency_id,agency_id,requested_by,status,priority,distance_km,expires_at
       ) values (
-        e.id,next_agency.id,auth.uid(),'offered',
+        e.id,next_agency.id,coalesce(auth.uid(),expired.requested_by),'offered',
         expired.priority,distance,now()+interval '45 seconds'
       ) returning * into expired;
 
@@ -761,3 +762,6 @@ end $$;
 
 revoke all on function public.get_my_emergency_agency_response(uuid) from public;
 grant execute on function public.get_my_emergency_agency_response(uuid) to authenticated;
+
+
+grant execute on function public.escalate_expired_emergency_agency_dispatches(uuid) to service_role;

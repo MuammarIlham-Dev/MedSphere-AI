@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useDonorProfile, useRegisterDonor, useBloodRequests, useLogDonation, useAllBloodInventories } from '@/hooks/queries/useBloodQueries';
+import { useDonorProfile, useRegisterDonor, usePublicBloodRequests, useAllBloodInventories, useOfferBloodDonation } from '@/hooks/queries/useBloodQueries';
 import { useAuthStore } from '@/stores/authStore';
 import { Button } from '@/components/ui/Button';
 import { BloodGroup } from '@/types';
@@ -10,17 +10,18 @@ export default function BloodDonation() {
   const user = useAuthStore(s => s.profile);
   const { data: profile, isLoading } = useDonorProfile();
   const { mutate: register, isPending: isRegistering } = useRegisterDonor();
-  const { data: requests, isLoading: isRequestsLoading } = useBloodRequests();
+  const { data: requests, isLoading: isRequestsLoading } = usePublicBloodRequests();
+  const offerDonation = useOfferBloodDonation();
 
   const [bloodGroup, setBloodGroup] = useState<BloodGroup | ''>(profile?.blood_group || '');
-  const [isEligibleOverride, setIsEligibleOverride] = useState(profile?.is_eligible ?? true);
+  const [isAvailable, setIsAvailable] = useState(profile?.is_available ?? true);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   if (isLoading) return <div className="p-8 text-center text-slate-400">Loading donor profile...</div>;
 
   const handleRegister = () => {
     if (!bloodGroup) return;
-    register({ blood_group: bloodGroup as BloodGroup, is_eligible: isEligibleOverride });
+    register({ blood_group: bloodGroup as BloodGroup, is_available: isAvailable });
   };
 
   // Timer logic
@@ -92,11 +93,11 @@ export default function BloodDonation() {
               <input 
                 type="checkbox" 
                 id="available" 
-                checked={isEligibleOverride}
-                onChange={(e) => setIsEligibleOverride(e.target.checked)}
+                checked={isAvailable}
+                onChange={(e) => setIsAvailable(e.target.checked)}
                 className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-rose-500 focus:ring-rose-500" 
               />
-              <label htmlFor="available" className="text-slate-300">I am eligible to donate</label>
+              <label htmlFor="available" className="text-slate-300">I am available to be contacted for donation</label>
             </div>
 
             <Button onClick={handleRegister} loading={isRegistering} className="w-full" disabled={!bloodGroup}>
@@ -141,8 +142,12 @@ export default function BloodDonation() {
                   </div>
                   <div className="flex items-center justify-between mt-4">
                     <span className="text-sm text-slate-300">{req.units} Unit(s)</span>
-                    <Button variant="primary" disabled={!isEligible || req.blood_group !== profile?.blood_group}>
-                      I Can Help
+                    <Button
+                      variant="primary"
+                      disabled={!isEligible || !isAvailable || offerDonation.isPending}
+                      onClick={() => offerDonation.mutate({ requestId: req.id, units: Math.min(1, req.units) })}
+                    >
+                      {offerDonation.isPending ? 'Sending...' : 'I Can Help'}
                     </Button>
                   </div>
                 </div>

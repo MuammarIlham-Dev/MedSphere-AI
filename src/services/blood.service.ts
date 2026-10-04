@@ -19,6 +19,9 @@ export const bloodService = {
   upsertInventory: (rows: Array<Pick<BloodInventoryRow, 'bank_id' | 'blood_group' | 'units_available' | 'units_reserved'>>) =>
     unwrap(supabase.from('blood_inventory').upsert(rows, { onConflict: 'bank_id,blood_group' }).select()),
 
+  publicRequests: () =>
+    unwrap<BloodRequest[]>(supabase.rpc('get_public_blood_requests')),
+
   requests: (status?: string) => {
     let q = supabase.from('blood_requests').select('*').order('created_at', { ascending: false }).limit(100);
     if (status) q = q.eq('status', status);
@@ -41,16 +44,33 @@ export const bloodService = {
     return data;
   },
 
-  registerAsDonor: async (input: { blood_group: BloodGroup; is_eligible: boolean }) => {
+  registerAsDonor: async (input: { blood_group: BloodGroup; is_available: boolean }) => {
     const uid = (await supabase.auth.getUser()).data.user?.id;
     if (!uid) throw new Error('Not authenticated');
     return unwrap(supabase.from('blood_donors').upsert({
       profile_id: uid,
-      ...input,
+      blood_group: input.blood_group,
+      is_available: input.is_available,
     }, { onConflict: 'profile_id' }).select().single());
   },
 
-  logDonation: async (donorId: string, bankId: string, units: number = 1) => {
+  offerDonation: (requestId: string, units = 1) =>
+    unwrap(supabase.rpc('offer_blood_donation', { p_request_id: requestId, p_units: units })),
+
+  acceptDonationOffer: (offerId: string) =>
+    unwrap(supabase.rpc('accept_blood_donation_offer', { p_offer_id: offerId })),
+
+  confirmDonation: (offerId: string, bankId: string, units = 1) =>
+    unwrap(supabase.rpc('confirm_blood_donation', {
+      p_offer_id: offerId,
+      p_bank_id: bankId,
+      p_units: units,
+    })),
+
+  bankOffers: (bankId: string) =>
+    unwrap<any[]>(supabase.rpc('get_blood_bank_offers', { p_bank_id: bankId })),
+
+  nearbyDonors: (bloodGroup: string, lat: number, lng: number) => {
     // Only authorized blood bank operators should call this!
     const now = new Date().toISOString().split('T')[0];
     await unwrap(supabase.from('blood_donations').insert({

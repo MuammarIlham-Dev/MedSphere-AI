@@ -8,6 +8,7 @@ import { PageTransition } from '@/components/transitions/PageTransition';
 import { cn, formatDateTime } from '@/lib/utils';
 import { useEffect, useState } from 'react';
 import { IoWaterOutline, IoMegaphoneOutline, IoPeopleOutline } from 'react-icons/io5';
+import { BloodOfferInbox } from '@/components/blood/BloodOfferInbox';
 import { useBloodInventory, useBloodRequests, useCreateBloodRequest, useMyBank } from '@/hooks/queries/useBloodQueries';
 import { bloodService } from '@/services/blood.service';
 import { BLOOD_GROUPS, URGENCY_LEVELS, BLOOD_COMPAT, type BloodGroup, type Urgency } from '@/types';
@@ -44,6 +45,7 @@ export default function BloodBankDashboard() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
+        {bank && <BloodOfferInbox bankId={bank.id} />}
         {bank && (
           <Card>
             <CardHeader title="Inventory" subtitle="Tap a cell to adjust stock (audited)" />

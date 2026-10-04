@@ -75,6 +75,52 @@ export function useRegisterDonor() {
   });
 }
 
+export function useOfferBloodDonation() {
+  const qc = useQueryClient();
+  const toast = useUiStore((s) => s.toast);
+  return useMutation({
+    mutationFn: ({ requestId, units }: { requestId: string; units?: number }) =>
+      bloodService.offerDonation(requestId, units),
+    onSuccess: () => {
+      toast('success', 'Donation offer sent');
+      void qc.invalidateQueries({ queryKey: ['public-blood-requests'] });
+    },
+    onError: (e) => toast('error', e instanceof Error ? e.message : 'Unable to offer donation'),
+  });
+}
+
+export function useBloodBankOffers(bankId: string | undefined) {
+  return useQuery({
+    queryKey: ['blood-bank-offers', bankId],
+    queryFn: () => bloodService.bankOffers(bankId!),
+    enabled: !!bankId,
+    refetchInterval: 30000,
+  });
+}
+
+export function useConfirmBloodDonation() {
+  const qc = useQueryClient();
+  const toast = useUiStore((s) => s.toast);
+  return useMutation({
+    mutationFn: ({ offerId, bankId, units }: { offerId: string; bankId: string; units?: number }) =>
+      bloodService.confirmDonation(offerId, bankId, units),
+    onSuccess: () => {
+      toast('success', 'Donation confirmed');
+      void qc.invalidateQueries({ queryKey: ['blood-bank-offers'] });
+      void qc.invalidateQueries({ queryKey: ['blood-donor-profile'] });
+    },
+    onError: (e) => toast('error', e instanceof Error ? e.message : 'Unable to confirm donation'),
+  });
+}
+
+export function usePublicBloodRequests() {
+  return useQuery({
+    queryKey: ['public-blood-requests'],
+    queryFn: bloodService.publicRequests,
+    refetchInterval: 30000,
+  });
+}
+
 export function useLogDonation() {
   const qc = useQueryClient();
   const toast = useUiStore((s) => s.toast);

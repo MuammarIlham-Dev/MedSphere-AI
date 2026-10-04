@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { emergencyChannel } from '@/lib/emergencyAbly';
+import { authorizeEmergencyAbly, emergencyChannel } from '@/lib/emergencyAbly';
 import { emergencyAgencyService } from '@/services/emergencyAgency.service';
 import type { EmergencyAgencyDispatchStatus } from '@/types/emergencyAgency';
 import { useUiStore } from '@/stores/uiStore';
@@ -72,12 +72,26 @@ export function useMyEmergencyAgencyResponse(emergencyId: string | undefined) {
 
   useEffect(() => {
     if (!emergencyId) return;
+    let active = true;
     const ch = emergencyChannel(`sos:emergency:${emergencyId}`);
     const onUpdate = () => {
       void qc.invalidateQueries({ queryKey: ['my-emergency-agency-response', emergencyId] });
     };
-    void ch.subscribe('emergency:update', onUpdate);
-    return () => { void ch.unsubscribe('emergency:update', onUpdate); };
+
+    void (async () => {
+      try {
+        // SOS can be created after the existing Ably session already obtained a token.
+        await authorizeEmergencyAbly();
+        if (active) await ch.subscribe('emergency:update', onUpdate);
+      } catch {
+        // Polling remains the recovery path if token refresh/realtime is unavailable.
+      }
+    })();
+
+    return () => {
+      active = false;
+      void ch.unsubscribe('emergency:update', onUpdate);
+    };
   }, [emergencyId, qc]);
 
   return query;

@@ -62,6 +62,20 @@ Deno.serve(async (req) => {
     }
   }
 
+  if (role === 'emergency_responder') {
+    const { data: memberships } = await supa
+      .from('emergency_agency_members')
+      .select('agency_id, emergency_agencies!inner(is_active,verification)')
+      .eq('user_id', user.id)
+      .eq('is_active', true);
+
+    for (const membership of memberships ?? []) {
+      if (membership.emergency_agencies?.is_active && membership.emergency_agencies?.verification === 'verified') {
+        capability[`sos:agency:${membership.agency_id}`] = ['subscribe'];
+      }
+    }
+  }
+
   if (role === 'citizen') {
     const { data: emergencies } = await supa
       .from('emergencies')

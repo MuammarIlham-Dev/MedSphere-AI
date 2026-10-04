@@ -50,6 +50,69 @@ begin
 end;
 $$;
 
+-- Administrative provisioning for emergency responders remains server-authoritative.
+create or replace function public.set_emergency_responder_role(
+  p_profile_id uuid,
+  p_enabled boolean
+) returns public.profiles
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  result public.profiles;
+begin
+  if not public.is_admin() then
+    raise exception 'Administrator access required';
+  end if;
+
+  if p_profile_id is null then
+    raise exception 'Profile is required';
+  end if;
+
+  if exists (
+    select 1 from public.profiles
+    where id = p_profile_id
+      and role in ('admin','super_admin')
+  ) then
+    raise exception 'Administrative profiles cannot be converted to responders';
+  end if;
+
+  if p_enabled then
+    update public.profiles
+    set role = 'emergency_responder'::public.app_role
+    where id = p_profile_id
+    returning * into result;
+  else
+    update public.emergency_agency_members
+    set is_active = false
+    where user_id = p_profile_id
+      and is_active = true;
+
+    update public.emergency_agency_dispatches
+    set status = 'cancelled',
+        responded_at = coalesce(responded_at, now()),
+        completed_at = coalesce(completed_at, now())
+    where assigned_member_id = p_profile_id
+      and status in ('acknowledged','en_route','on_scene');
+
+    update public.profiles
+    set role = 'citizen'::public.app_role
+    where id = p_profile_id
+    returning * into result;
+  end if;
+
+  if not found then
+    raise exception 'Profile not found';
+  end if;
+
+  return result;
+end;
+$$;
+
+revoke all on function public.set_emergency_responder_role(uuid,boolean) from public, anon;
+grant execute on function public.set_emergency_responder_role(uuid,boolean) to authenticated;
+
 -- Blood inventory is read-only through PostgREST. Physical inventory changes use one
 -- server-authorized RPC so reservations can never be rewritten by the client.
 drop policy if exists blood_inv_write on public.blood_inventory;

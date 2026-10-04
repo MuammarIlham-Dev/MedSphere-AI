@@ -71,18 +71,6 @@ export const bloodService = {
     unwrap<any[]>(supabase.rpc('get_blood_bank_offers', { p_bank_id: bankId })),
 
   nearbyDonors: (bloodGroup: string, lat: number, lng: number) => {
-    // Only authorized blood bank operators should call this!
-    const now = new Date().toISOString().split('T')[0];
-    await unwrap(supabase.from('blood_donations').insert({
-      donor_id: donorId,
-      bank_id: bankId,
-      donated_at: now,
-      units: units
-    }));
-    return unwrap(supabase.from('blood_donors').update({ last_donation_at: now }).eq('id', donorId).select().single());
-  },
-
-  nearbyDonors: (bloodGroup: string, lat: number, lng: number) => {
     // Basic implementation: fetch active donors with matching blood group.
     // Real implementation would use PostGIS or Haversine function via RPC for radius search.
     return unwrap(supabase.from('blood_donors')

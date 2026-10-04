@@ -23,6 +23,18 @@ export const emergencyAgencyService = {
       supabase.rpc('get_emergency_agency_dispatches', { p_emergency_id: emergencyId }),
     ),
 
+  myEmergencyResponse: (emergencyId: string) =>
+    unwrap<Array<{
+      dispatch_id: string;
+      agency_name: string;
+      agency_type: 'ems' | 'fire' | 'police' | 'rescue';
+      status: 'offered' | 'acknowledged' | 'en_route' | 'on_scene' | 'completed' | 'declined' | 'timed_out' | 'cancelled';
+      requested_at: string;
+      responded_at: string | null;
+    }>>(
+      supabase.rpc('get_my_emergency_agency_response', { p_emergency_id: emergencyId }),
+    ),
+
   dispatchRequired: async (emergencyId: string) => {
     const { data, error } = await supabase.rpc(
       'dispatch_required_emergency_agencies',

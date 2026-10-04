@@ -189,11 +189,10 @@ BEGIN
     RAISE EXCEPTION 'telemedicine session window has expired';
   END IF;
 
+  SELECT * INTO a FROM public.appointments WHERE id = s.appointment_id;
   IF a.status NOT IN ('confirmed', 'checked_in', 'in_progress') THEN
     RAISE EXCEPTION 'video consultation is no longer open';
   END IF;
-
-  SELECT * INTO a FROM public.appointments WHERE id = s.appointment_id;
   SELECT * INTO d FROM public.doctors WHERE id = a.doctor_id;
 
   IF d.profile_id = auth.uid() AND NOT public.doctor_verification_eligible(d.id) THEN
@@ -354,6 +353,16 @@ BEGIN
    WHERE id = s.id
    RETURNING * INTO s;
 
+  INSERT INTO public.notifications(user_id, type, title, body, data, priority)
+  VALUES (
+    a.patient_id,
+    'telemedicine.ended',
+    'Telemedicine consultation ended',
+    'The doctor ended the secure video consultation session.',
+    jsonb_build_object('appointment_id', a.id, 'session_id', s.id),
+    'normal'
+  );
+
   INSERT INTO public.audit_logs(actor_id, action, table_name, record_id, new_data)
   VALUES (
     auth.uid(),
@@ -402,11 +411,11 @@ BEGIN
     INSERT INTO public.conversations(appointment_id, subject)
     VALUES (a.id, 'Telemedicine consultation')
     RETURNING * INTO c;
-
-    INSERT INTO public.conversation_participants(conversation_id, user_id)
-    VALUES (c.id, a.patient_id), (c.id, d.profile_id)
-    ON CONFLICT DO NOTHING;
   END IF;
+
+  INSERT INTO public.conversation_participants(conversation_id, user_id)
+  VALUES (c.id, a.patient_id), (c.id, d.profile_id)
+  ON CONFLICT DO NOTHING;
 
   RETURN c;
 END;

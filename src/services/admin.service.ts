@@ -12,8 +12,26 @@ export const adminService = {
   pendingDoctors: () =>
     unwrap<Doctor[]>(supabase.from('doctors').select('*').eq('verification', 'pending').order('id')),
 
-  verifyDoctor: (id: string, approve: boolean) =>
-    unwrap(supabase.from('doctors').update({ verification: approve ? 'verified' : 'rejected' }).eq('id', id).select().single()),
+  pendingDoctorCredentials: () =>
+    unwrap<Array<any>>(supabase.from('doctor_credentials')
+      .select('*, doctors:doctor_id(id, specialty, license_no, profiles:profile_id(full_name))')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: true })
+      .limit(100)),
+
+  reviewDoctorCredential: (id: string, status: 'accepted' | 'rejected', notes?: string) =>
+    unwrap(supabase.rpc('review_doctor_credential', {
+      p_credential_id: id,
+      p_status: status,
+      p_notes: notes || null,
+    })),
+
+  verifyDoctor: (id: string, approve: boolean, reason?: string) =>
+    unwrap(supabase.rpc('set_doctor_verification', {
+      p_doctor_id: id,
+      p_status: approve ? 'verified' : 'rejected',
+      p_reason: reason || null,
+    })),
 
   auditLog: (offset = 0) =>
     unwrap<AuditLog[]>(supabase.from('audit_logs').select('*')

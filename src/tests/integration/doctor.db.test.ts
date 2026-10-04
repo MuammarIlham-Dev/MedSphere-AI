@@ -5,7 +5,7 @@ import postgres from 'postgres';
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL as string | undefined;
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 const SUPABASE_DB_URL = process.env.SUPABASE_DB_URL;
-const sql = SUPABASE_DB_URL ? postgres(SUPABASE_DB_URL, { ssl: 'require' }) : null;
+const sql = (SUPABASE_DB_URL ? postgres(SUPABASE_DB_URL, { ssl: 'require' }) : null) as unknown as postgres.Sql;
 
 const integrationEnabled = Boolean(
   SUPABASE_URL && SUPABASE_ANON_KEY && SUPABASE_DB_URL
@@ -214,7 +214,7 @@ describe.skipIf(!integrationEnabled)('Doctor Tier Database Integration with Fixt
 
   describe('RPC: book_appointment and overlaps', () => {
     it('should reject unauthorized booking (no auth)', async () => {
-      const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      const client = createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!);
       const { error } = await client.rpc('book_appointment', {
         p_doctor_id: testDoctorId,
         p_hospital_id: null,
@@ -733,7 +733,7 @@ describe.skipIf(!integrationEnabled)('Doctor Tier Database Integration with Fixt
           SELECT (public.book_appointment(
             ${testDoctorId},
             NULL,
-            ${slotAt}::timestamptz,
+            ${slotAt!}::timestamptz,
             15,
             'clinic'::consultation_type,
             'availability-test'
@@ -750,7 +750,7 @@ describe.skipIf(!integrationEnabled)('Doctor Tier Database Integration with Fixt
           'clinic'::consultation_type,
           NULL
         )
-        WHERE slot_at = ${slotAt}::timestamptz
+        WHERE slot_at = ${slotAt!}::timestamptz
       `;
       expect(booked[0]?.available).toBe(false);
 

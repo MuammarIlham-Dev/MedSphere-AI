@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import postgres from 'postgres';
 
 const DB_URL = process.env.SUPABASE_DB_URL;
-const sql = DB_URL ? postgres(DB_URL, { ssl: 'require' }) : null;
+const sql = (DB_URL ? postgres(DB_URL, { ssl: 'require' }) : null) as unknown as postgres.Sql;
 
 const patientId = '12121212-3434-5656-7878-909090909090';
 const doctorId = '23232323-4545-6767-8989-101010101010';
@@ -48,12 +48,12 @@ describe.skipIf(!DB_URL)('Citizen EHR privacy integration', () => {
     const pharmacyRows = await asUser(pharmacyUserId, (tx) => tx`SELECT id FROM public.prescriptions WHERE id=${prescriptionId}`);
     expect(pharmacyRows).toHaveLength(0);
 
-    const share = await asUser(patientId, (tx) => tx`SELECT * FROM public.share_prescription_with_pharmacy(${prescriptionId},${pharmacyId})`);
+    const share = await asUser<any[]>(patientId, (tx) => tx`SELECT * FROM public.share_prescription_with_pharmacy(${prescriptionId},${pharmacyId})`);
     expect(share[0]?.status).toBe('shared');
 
     const pharmacyVisible = await asUser(pharmacyUserId, (tx) => tx`SELECT id FROM public.prescriptions WHERE id=${prescriptionId}`);
     expect(pharmacyVisible).toHaveLength(1);
-    const fulfilled = await asUser(pharmacyUserId, (tx) => tx`SELECT status FROM public.fulfill_prescription_share(${share[0]?.id})`);
+    const fulfilled = await asUser<any[]>(pharmacyUserId, (tx) => tx`SELECT status FROM public.fulfill_prescription_share(${share[0]?.id})`);
     expect(fulfilled[0]?.status).toBe('fulfilled');
 
     await sql!`DELETE FROM public.prescription_pharmacy_shares WHERE prescription_id=${prescriptionId}`;

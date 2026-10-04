@@ -22,6 +22,7 @@ import {
   useVerifyLabReport,
 } from '@/hooks/queries/useLaboratoryQueries';
 import { formatDateTime } from '@/lib/utils';
+import { laboratoryService } from '@/services/laboratory.service';
 import { supabase } from '@/lib/supabase';
 import { unwrap } from '@/lib/api';
 
@@ -52,6 +53,7 @@ export default function LabDashboard() {
   const toast = useUiStore((s) => s.toast);
   const [reportingItem, setReportingItem] = useState<string | null>(null);
   const [reportJson, setReportJson] = useState('{\n  "result": ""\n}');
+  const [reportFile, setReportFile] = useState<File | null>(null);
 
   const { data: laboratory } = useQuery({
     queryKey: ['owned-laboratory', profile?.id],
@@ -80,6 +82,18 @@ export default function LabDashboard() {
     };
   }, [orders]);
 
+  const openDocument = async (reportId: string) => {
+    const popup = window.open('about:blank', '_blank', 'noopener,noreferrer');
+    try {
+      const url = await laboratoryService.openReportDocument(reportId);
+      if (popup) popup.location.href = url;
+      else window.location.assign(url);
+    } catch (error) {
+      popup?.close();
+      toast('error', error instanceof Error ? error.message : 'Could not open laboratory document');
+    }
+  };
+
   const submitReport = (orderId: string, testId: string) => {
     try {
       const parsed = JSON.parse(reportJson) as unknown;
@@ -87,11 +101,12 @@ export default function LabDashboard() {
         throw new Error('Report result must be a JSON object');
       }
       createReport.mutate(
-        { orderId, testId, result: parsed as Record<string, unknown> },
+        { orderId, testId, result: parsed as Record<string, unknown>, file: reportFile },
         {
           onSuccess: () => {
             setReportingItem(null);
             setReportJson('{\n  "result": ""\n}');
+            setReportFile(null);
           },
         },
       );
@@ -184,6 +199,7 @@ export default function LabDashboard() {
                             onClick={() => {
                               setReportingItem(item.id);
                               setReportJson('{\n  "result": ""\n}');
+                              setReportFile(null);
                             }}
                           >
                             Create report
@@ -197,6 +213,11 @@ export default function LabDashboard() {
                         {item.report_id && item.report_status === 'verified' && (
                           <Button size="sm" variant="success" loading={deliver.isPending} onClick={() => deliver.mutate({ reportId: item.report_id! })}>
                             Publish
+                          </Button>
+                        )}
+                        {item.report_file_id && item.report_id && (
+                          <Button size="sm" variant="secondary" onClick={() => void openDocument(item.report_id!)}>
+                            Open document
                           </Button>
                         )}
                         {item.report_status === 'delivered' && <Badge tone="success">Published to EHR</Badge>}
@@ -218,6 +239,16 @@ export default function LabDashboard() {
                           className="mt-3 min-h-32 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 font-mono text-xs outline-none focus:border-brand-500 dark:border-white/10 dark:bg-surface-dark-muted"
                           spellCheck={false}
                         />
+                        <label className="mt-3 block text-sm font-medium text-foreground" htmlFor={'lab-report-file-' + item.id}>
+                          Attach report document <span className="font-normal text-muted-foreground">(optional · PDF/JPG/PNG · max 20 MB)</span>
+                          <input
+                            id={'lab-report-file-' + item.id}
+                            type="file"
+                            accept="application/pdf,image/jpeg,image/png"
+                            onChange={(e) => setReportFile(e.target.files?.[0] ?? null)}
+                            className="mt-2 block w-full text-sm"
+                          />
+                        </label>
                         <div className="mt-3 flex flex-wrap justify-end gap-2">
                           <Button size="sm" variant="ghost" onClick={() => setReportingItem(null)}>Cancel</Button>
                           <Button size="sm" loading={createReport.isPending} onClick={() => submitReport(order.id, item.test_id)}>

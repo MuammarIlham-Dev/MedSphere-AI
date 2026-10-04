@@ -6,14 +6,34 @@ import { formatDateTime } from '@/lib/utils';
 import { useMyMedicalRecords, useMyLabReports, useMyPrescriptions } from '@/hooks/queries/useEhrQueries';
 import { MedicationReminderPanel } from '@/components/ehr/MedicationReminderPanel';
 import { PrescriptionSharingPanel } from '@/components/ehr/PrescriptionSharingPanel';
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { useReveal } from '@/lib/gsap';
 import { IoDocumentTextOutline, IoMedkitOutline, IoFlaskOutline } from 'react-icons/io5';
+import { Button } from '@/components/ui/Button';
+import { ehrService } from '@/services/ehr.service';
+import { useQuery } from '@tanstack/react-query';
 
 export function MedicalRecords() {
   const { data: records, isLoading: loadingRecords } = useMyMedicalRecords();
   const { data: labReports, isLoading: loadingLabs } = useMyLabReports();
   const { data: prescriptions, isLoading: loadingPrescriptions } = useMyPrescriptions();
+  const [historyReportId, setHistoryReportId] = useState<string | null>(null);
+  const history = useQuery({
+    queryKey: ['lab-report-access-history', historyReportId],
+    queryFn: () => ehrService.labReportAccessHistory(historyReportId!),
+    enabled: !!historyReportId,
+  });
+  const openReport = async (reportId: string) => {
+    const popup = window.open('about:blank', '_blank', 'noopener,noreferrer');
+    try {
+      const url = await ehrService.openLabReportDocument(reportId);
+      if (popup) popup.location.href = url;
+      else window.location.assign(url);
+    } catch (error) {
+      popup?.close();
+      window.alert(error instanceof Error ? error.message : 'Could not open laboratory document');
+    }
+  };
   const rootRef = useRef<HTMLDivElement>(null);
   useReveal(rootRef);
 
@@ -82,12 +102,32 @@ export function MedicalRecords() {
                 <EmptyState title="No lab reports" hint="You don't have any recent lab results." />
               )}
               {labReports?.map((report) => (
-                <div key={report.id} className="flex items-center justify-between rounded-xl border border-slate-200 dark:border-white/10 p-4">
-                  <div>
-                    <p className="font-medium text-sm">{report.test_name ?? report.report_code}</p>
-                    <p className="text-xs text-slate-500">{formatDateTime(report.created_at)}</p>
+                <div key={report.id} className="rounded-xl border border-slate-200 dark:border-white/10 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-sm">{report.test_name ?? report.report_code}</p>
+                      <p className="text-xs text-slate-500">{formatDateTime(report.created_at)}</p>
+                    </div>
+                    <Badge tone="success">{report.status}</Badge>
                   </div>
-                  <Badge tone={report.status === 'completed' ? 'success' : 'warning'}>{report.status}</Badge>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {report.file_id && <Button size="sm" onClick={() => void openReport(report.id)}>Open report document</Button>}
+                    <Button size="sm" variant="ghost" onClick={() => setHistoryReportId(historyReportId === report.id ? null : report.id)}>
+                      {historyReportId === report.id ? 'Hide access history' : 'Access history'}
+                    </Button>
+                  </div>
+                  {historyReportId === report.id && (
+                    <div className="mt-3 rounded-lg bg-surface-muted p-3 dark:bg-surface-dark-muted">
+                      {history.isLoading && <p className="text-xs text-slate-500">Loading access history…</p>}
+                      {!history.isLoading && history.data?.length === 0 && <p className="text-xs text-slate-500">No document opens recorded yet.</p>}
+                      {history.data?.map((entry, index) => (
+                        <div key={entry.accessed_at + ':' + index} className="flex flex-wrap justify-between gap-2 border-b border-slate-200 py-2 text-xs last:border-0 dark:border-white/10">
+                          <span>{entry.accessor_name} · {entry.accessor_role.replace('_', ' ')}</span>
+                          <span className="text-slate-500">{formatDateTime(entry.accessed_at)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

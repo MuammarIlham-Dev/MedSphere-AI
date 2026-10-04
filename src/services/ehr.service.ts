@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { unwrap } from '@/lib/api';
+import { ApiError, unwrap } from '@/lib/api';
 import type { MedicalRecord, MedicationReminder } from '@/types';
 
 export interface LabReportSummary {
@@ -9,6 +9,7 @@ export interface LabReportSummary {
   result_json: Record<string, unknown>;
   created_at: string;
   test_name: string | null;
+  file_id: string | null;
 }
 
 export interface EncounterContext {
@@ -100,9 +101,9 @@ export const ehrService = {
     );
     if (orders.length === 0) return [];
 
-    const rows = await unwrap<Array<{ id: string; report_code: string; status: string; result_json: Record<string, unknown>; created_at: string; lab_tests?: { name: string } | { name: string }[] }>>(
+    const rows = await unwrap<Array<{ id: string; report_code: string; status: string; result_json: Record<string, unknown>; created_at: string; file_id: string | null; lab_tests?: { name: string } | { name: string }[] }>>(
       supabase.from('lab_reports')
-        .select('id, report_code, status, result_json, created_at, lab_tests(name)')
+        .select('id, report_code, status, result_json, created_at, file_id, lab_tests(name)')
         .in('order_id', orders.map((order) => order.id))
         .order('created_at', { ascending: false }),
     );
@@ -113,8 +114,22 @@ export const ehrService = {
       result_json: row.result_json,
       created_at: row.created_at,
       test_name: Array.isArray(row.lab_tests) ? (row.lab_tests[0]?.name ?? null) : (row.lab_tests?.name ?? null),
+      file_id: row.file_id,
     }));
   },
+
+  openLabReportDocument: (reportId: string): Promise<string> =>
+    supabase.functions.invoke<{ signedUrl: string }>('lab-report-document', { body: { reportId } })
+      .then(({ data, error }) => {
+        if (error) throw error;
+        if (!data?.signedUrl) throw new ApiError('SERVER', 'Could not open laboratory document');
+        return data.signedUrl;
+      }),
+
+  labReportAccessHistory: (reportId: string) =>
+    unwrap<Array<{ accessed_at: string; accessor_name: string; accessor_role: string; access_type: string }>>(
+      supabase.rpc('get_lab_report_access_history', { p_report_id: reportId }),
+    ),
 
   labTests: (): Promise<LabTestOption[]> =>
     unwrap<LabTestOption[]>(supabase.from('lab_tests')

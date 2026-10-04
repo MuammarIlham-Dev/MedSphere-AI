@@ -130,6 +130,21 @@ export function useEmergencyAgencyCancelAction() {
   });
 }
 
+export function useResolveNonAmbulanceEmergency() {
+  const toast = useUiStore((s) => s.toast);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: emergencyAgencyService.resolveNonAmbulance,
+    onSuccess: (_row, emergencyId) => {
+      toast('success', 'Emergency incident resolved.');
+      void qc.invalidateQueries({ queryKey: ['active-emergencies'] });
+      void qc.invalidateQueries({ queryKey: ['emergency', 'active'] });
+      void qc.invalidateQueries({ queryKey: ['my-emergency-agency-response', emergencyId] });
+    },
+    onError: (e) => toast('error', e instanceof Error ? e.message : 'Unable to resolve emergency'),
+  });
+}
+
 export function useEmergencyAgencyStatusAction() {
   const toast = useUiStore((s) => s.toast);
   const qc = useQueryClient();

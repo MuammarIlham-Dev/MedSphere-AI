@@ -449,6 +449,7 @@ DECLARE
   report_row public.lab_reports;
   report_code_value text;
   file_row public.files;
+  lab_verification verification_status;
 BEGIN
   SELECT o INTO order_row FROM public.lab_orders o WHERE o.id = p_order_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'laboratory order not found'; END IF;
@@ -576,6 +577,7 @@ DECLARE
   report_row public.lab_reports;
   order_row public.lab_orders;
   verifier_role text;
+  lab_verification verification_status;
 BEGIN
   SELECT r INTO report_row FROM public.lab_reports r WHERE r.id = p_report_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'laboratory report not found'; END IF;
@@ -637,6 +639,7 @@ DECLARE
   report_row public.lab_reports;
   order_row public.lab_orders;
   publisher_role text;
+  lab_verification verification_status;
 BEGIN
   SELECT r INTO report_row FROM public.lab_reports r WHERE r.id = p_report_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'laboratory report not found'; END IF;

@@ -23,7 +23,8 @@ export default function HospitalBlood(){
   const pending=(requests??[]).filter(r=>['open','partially_fulfilled'].includes(r.status));
   const submit=()=>{
     if(!form.patientName.trim()||form.units<1)return;
-    create.mutate({...form,neededBy:form.neededBy||undefined},{onSuccess:()=>{setOpen(false);setForm({...form,patientName:'',units:1,notes:''});}});
+    const neededBy = form.neededBy ? new Date(form.neededBy).toISOString() : undefined;
+    create.mutate({...form,neededBy},{onSuccess:()=>{setOpen(false);setForm({...form,patientName:'',units:1,notes:''});}});
   };
   return <PageTransition>
     <PageHeader title="Blood Requisition" subtitle={hospital.name+' · request blood from the verified network'} actions={<Button variant="danger" onClick={()=>setOpen(true)}>Request blood</Button>}/>

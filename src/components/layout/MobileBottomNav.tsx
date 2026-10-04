@@ -45,7 +45,7 @@ export function MobileBottomNav() {
       case 'hospital':
         return [
           { to: '/app/hospital', label: 'Overview', icon: <IoBusinessOutline className="h-5 w-5" /> },
-          { to: '/app/blood', label: 'Blood Bank', icon: <IoWaterOutline className="h-5 w-5" /> },
+          { to: '/app/hospital/blood', label: 'Blood Req', icon: <IoWaterOutline className="h-5 w-5" /> },
           { to: '/app/organ', label: 'Organ', icon: <IoBodyOutline className="h-5 w-5" /> },
           { to: '/app/profile', label: 'Profile', icon: <IoPersonOutline className="h-5 w-5" /> },
         ];
@@ -81,6 +81,11 @@ export function MobileBottomNav() {
     }
     if (role === 'hospital' || role === 'admin' || role === 'super_admin') {
       return [
+        ...(role === 'hospital' ? [
+          { to: '/app/hospital/queue', label: 'Clinical Queue', desc: 'Today’s hospital appointments', icon: <IoCalendarOutline className="h-5 w-5 text-brand-600" /> },
+          { to: '/app/hospital/inpatient', label: 'Inpatient Operations', desc: 'Admissions, transfers & discharge', icon: <IoPeopleOutline className="h-5 w-5 text-indigo-500" /> },
+          { to: '/app/hospital/blood', label: 'Blood Requisition', desc: 'Request blood from verified banks', icon: <IoWaterOutline className="h-5 w-5 text-rose-500" /> },
+        ] : []),
         { to: '/app/admin', label: 'Administrative Console', desc: 'User audits & compliance logs', icon: <IoShieldCheckmarkOutline className="h-5 w-5 text-brand-600" /> },
         { to: '/app/gov', label: 'Epidemiology Analytics', desc: 'Disease outbreak monitoring', icon: <IoStatsChartOutline className="h-5 w-5 text-emerald-500" /> },
         { to: '/app/laboratory', label: 'Laboratory Service', desc: 'Diagnostic work orders', icon: <IoBeakerOutline className="h-5 w-5 text-indigo-500" /> },

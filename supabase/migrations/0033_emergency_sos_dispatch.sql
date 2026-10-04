@@ -621,3 +621,41 @@ $$;
 revoke all on function public.update_emergency_status(uuid,emergency_status) from public;
 grant execute on function public.update_emergency_status(uuid,emergency_status) to authenticated;
 
+
+
+-- Region-scoped operator feed: operators only see active emergencies in their assigned city.
+create or replace function public.get_emergency_operator_feed()
+returns setof public.emergencies
+language plpgsql security definer set search_path = public as $$
+declare
+  r app_role;
+  operator_city text;
+begin
+  r := public.current_role();
+  if r not in ('emergency_operator','admin','super_admin') then
+    raise exception 'Unauthorized emergency operator feed access';
+  end if;
+
+  select city into operator_city from public.profiles where id = auth.uid();
+
+  if r = 'emergency_operator' and operator_city is not null then
+    return query
+      select e from public.emergencies e
+      where e.status in ('active','dispatched','on_scene','transporting','arrived')
+        and e.city = operator_city
+      order by
+        case when e.status='active' then 0 else 1 end,
+        e.created_at asc;
+  else
+    return query
+      select e from public.emergencies e
+      where e.status in ('active','dispatched','on_scene','transporting','arrived')
+      order by
+        case when e.status='active' then 0 else 1 end,
+        e.created_at asc;
+  end if;
+end;
+$$;
+
+revoke all on function public.get_emergency_operator_feed() from public;
+grant execute on function public.get_emergency_operator_feed() to authenticated;

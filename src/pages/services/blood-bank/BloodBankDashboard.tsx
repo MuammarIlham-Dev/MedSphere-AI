@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react';
 import { IoWaterOutline, IoMegaphoneOutline, IoPeopleOutline } from 'react-icons/io5';
 import { BloodOfferInbox } from '@/components/blood/BloodOfferInbox';
 import { useBloodInventory, useBloodRequests, useCreateBloodRequest, useMyBank } from '@/hooks/queries/useBloodQueries';
+import { HospitalBloodRequisitions } from '@/components/blood/HospitalBloodRequisitions';
 import { bloodService } from '@/services/blood.service';
 import { BLOOD_GROUPS, URGENCY_LEVELS, BLOOD_COMPAT, type BloodGroup, type Urgency } from '@/types';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -74,6 +75,8 @@ export default function BloodBankDashboard() {
             </div>
           </Card>
         )}
+
+        {bank && <HospitalBloodRequisitions bankId={bank.id} />} 
 
         <Card>
           <CardHeader title="Open requests" subtitle="Most urgent first" />

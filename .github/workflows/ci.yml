@@ -46,3 +46,24 @@ jobs:
 
       - name: Production build
         run: pnpm run build
+
+
+  database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+
+      - name: Start local Supabase stack
+        run: supabase start
+
+      - name: Replay every migration from zero
+        run: supabase db reset --local --no-seed
+
+      - name: PostgreSQL schema and PL/pgSQL lint
+        run: supabase db lint --local --level error --fail-on error
+

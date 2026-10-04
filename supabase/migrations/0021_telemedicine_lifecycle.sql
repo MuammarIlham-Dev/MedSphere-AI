@@ -49,6 +49,36 @@ CREATE POLICY telemedicine_sessions_read
     or public.is_admin()
   );
 
+
+CREATE OR REPLACE FUNCTION public.sync_telemedicine_with_appointment()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $
+BEGIN
+  IF NEW.status IN ('completed', 'cancelled', 'no_show') THEN
+    UPDATE public.telemedicine_sessions
+       SET status = CASE WHEN NEW.status = 'completed' THEN 'ended' ELSE 'cancelled' END,
+           ended_at = COALESCE(ended_at, now()),
+           ended_by = COALESCE(ended_by, auth.uid()),
+           patient_active = false,
+           doctor_active = false,
+           updated_at = now()
+     WHERE appointment_id = NEW.id
+       AND status IN ('waiting', 'live');
+  END IF;
+  RETURN NEW;
+END;
+$;
+
+DROP TRIGGER IF EXISTS tr_sync_telemedicine_with_appointment ON public.appointments;
+CREATE TRIGGER tr_sync_telemedicine_with_appointment
+AFTER UPDATE OF status ON public.appointments
+FOR EACH ROW
+WHEN (NEW.status IN ('completed', 'cancelled', 'no_show'))
+EXECUTE FUNCTION public.sync_telemedicine_with_appointment();
+
 CREATE OR REPLACE FUNCTION public.request_telemedicine_join(p_appointment_id uuid)
 RETURNS TABLE (
   session_id uuid,

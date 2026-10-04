@@ -16,6 +16,8 @@ const CitizenDashboard = lazy(() => import('@/pages/roles/citizen/CitizenDashboa
 const DoctorDashboard = lazy(() => import('@/pages/roles/doctor/DoctorDashboard'));
 const HospitalDashboard = lazy(() => import('@/pages/roles/hospital/HospitalDashboard'));
 const MyAppointments = lazy(() => import('@/pages/roles/citizen/MyAppointments'));
+const BedBooking = lazy(() => import('@/pages/roles/citizen/BedBooking'));
+const BedManagement = lazy(() => import('@/pages/roles/hospital/BedManagement'));
 const ConsultationRoom = lazy(() => import('@/pages/telemedicine/ConsultationRoom'));
 const OrganDashboard = lazy(() => import('@/pages/services/organ-donation/OrganDashboard'));
 const OrganDonation = lazy(() => import('@/pages/roles/citizen/OrganDonation'));
@@ -62,7 +64,9 @@ export default function App() {
                 <Route path="/app/citizen" element={<RoleGate allow={['citizen']}><CitizenDashboard /></RoleGate>} />
                 <Route path="/app/doctor" element={<RoleGate allow={['doctor']}><DoctorDashboard /></RoleGate>} />
                 <Route path="/app/hospital" element={<RoleGate allow={['hospital', 'admin', 'super_admin']}><HospitalDashboard /></RoleGate>} />
+                <Route path="/app/hospital/beds" element={<RoleGate allow={['hospital', 'admin', 'super_admin']}><BedManagement /></RoleGate>} />
                 <Route path="/app/appointments" element={<RoleGate allow={['citizen']}><MyAppointments /></RoleGate>} />
+                <Route path="/app/bed-booking" element={<RoleGate allow={['citizen']}><BedBooking /></RoleGate>} />
                 <Route path="/app/consult" element={<ConsultationRoom />} />
                 <Route path="/app/consult/:appointmentId" element={<ConsultationRoom />} />
                 <Route path="/app/directory" element={<RoleGate allow={['citizen']}><HospitalDirectory /></RoleGate>} />

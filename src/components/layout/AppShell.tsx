@@ -8,7 +8,7 @@ import {
   IoGridOutline, IoCalendarOutline, IoVideocamOutline, IoWaterOutline,
   IoBodyOutline, IoMedkitOutline, IoStatsChartOutline, IoPeopleOutline,
   IoNotificationsOutline, IoMenuOutline, IoLogOutOutline, IoShieldCheckmarkOutline,
-  IoBusinessOutline, IoChatbubbleOutline, IoSearchOutline, IoBeakerOutline, IoMedicalOutline, IoDocumentTextOutline,
+  IoBusinessOutline, IoChatbubbleOutline, IoSearchOutline, IoBeakerOutline, IoMedicalOutline, IoDocumentTextOutline, IoBedOutline,
   IoCloseOutline,
 } from 'react-icons/io5';
 import { MobileBottomNav } from './MobileBottomNav';
@@ -24,7 +24,8 @@ const NAV: Partial<Record<Role, NavItem[]>> = {
   citizen: [
     { to: '/app/citizen', label: 'Dashboard', icon: <IoGridOutline /> },
     { to: '/app/directory', label: 'Hospital Directory', icon: <IoBusinessOutline /> },
-    { to: '/app/appointments', label: 'Appointments', icon: <IoCalendarOutline /> },
+    { to: '/app/appointments', label: 'Doctor Appointments', icon: <IoCalendarOutline /> },
+    { to: '/app/bed-booking', label: 'Bed Booking', icon: <IoBedOutline /> },
     { to: '/app/consult', label: 'Telemedicine', icon: <IoVideocamOutline /> },
     { to: '/app/records', label: 'Medical Records', icon: <IoDocumentTextOutline /> },
     { to: '/app/blood', label: 'Blood', icon: <IoWaterOutline /> },
@@ -37,6 +38,7 @@ const NAV: Partial<Record<Role, NavItem[]>> = {
   ],
   hospital: [
     { to: '/app/hospital', label: 'Overview', icon: <IoBusinessOutline /> },
+    { to: '/app/hospital/beds', label: 'Bed Management', icon: <IoBedOutline /> },
     { to: '/app/organ', label: 'Organ Coordination', icon: <IoBodyOutline /> },
     { to: '/app/blood', label: 'Blood Bank', icon: <IoWaterOutline /> },
   ],

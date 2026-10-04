@@ -1,0 +1,12 @@
+import {useMutation,useQuery,useQueryClient} from '@tanstack/react-query'; import {useAuthStore} from '@/stores/authStore'; import {bedService} from '@/services/bed.service';
+const inv=(q:any,id?:string)=>{for(const k of ['hospital-beds','hospital-bed-requests','hospital-bed-reservations','hospital-admissions','my-bed-requests','public-bed-availability'])void q.invalidateQueries({queryKey:[k,id]})};
+export const usePublicBedAvailability=(city?:string)=>useQuery({queryKey:['public-bed-availability',city],queryFn:()=>bedService.availability(city),staleTime:15000,refetchInterval:20000});
+export const useMyBedRequests=()=>{const p=useAuthStore(s=>s.profile);return useQuery({queryKey:['my-bed-requests',p?.id],queryFn:()=>bedService.my(p!.id),enabled:!!p?.id,refetchInterval:20000})};
+export const useRequestBed=()=>{const q=useQueryClient();return useMutation({mutationFn:bedService.request,onSuccess:()=>inv(q)} )};
+export const useCancelBedRequest=()=>{const q=useQueryClient();return useMutation({mutationFn:bedService.cancel,onSuccess:()=>inv(q)})};
+export const useHospitalBeds=(id?:string)=>useQuery({queryKey:['hospital-beds',id],queryFn:()=>bedService.beds(id!),enabled:!!id,refetchInterval:15000});
+export const useHospitalBedRequests=(id?:string)=>useQuery({queryKey:['hospital-bed-requests',id],queryFn:()=>bedService.requests(id!),enabled:!!id,refetchInterval:15000});
+export const useHospitalBedReservations=(id?:string)=>useQuery({queryKey:['hospital-bed-reservations',id],queryFn:()=>bedService.reservations(id!),enabled:!!id,refetchInterval:15000});
+export const useHospitalAdmissions=(id?:string)=>useQuery({queryKey:['hospital-admissions',id],queryFn:()=>bedService.admissions(id!),enabled:!!id,refetchInterval:15000});
+const m=(fn:any,id?:string)=>{const q=useQueryClient();return useMutation({mutationFn:fn,onSuccess:()=>inv(q,id)})};
+export const useCreateHospitalBed=()=>m(bedService.add); export const useApproveBedRequest=(id?:string)=>m((x:any)=>bedService.approve(x.requestId,x.bedId),id); export const useAdmitBedReservation=(id?:string)=>m(bedService.admit,id); export const useDischargeAdmission=(id?:string)=>m((x:any)=>bedService.discharge(x.admissionId),id);

@@ -17,7 +17,7 @@ const TYPES: Array<{ value: DoctorCredential['credential_type']; label: string }
   { value: 'other', label: 'Other professional document' },
 ];
 
-export function DoctorCredentials({ doctor }: { doctor: Doctor & { verification_due_at?: string | null } }) {
+export function DoctorCredentials({ doctor }: { doctor: Doctor }) {
   const qc = useQueryClient();
   const toast = useUiStore((s) => s.toast);
   const [type, setType] = useState<DoctorCredential['credential_type']>('medical_license');

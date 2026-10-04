@@ -10,7 +10,7 @@ import { Link } from 'react-router-dom';
 import { useMyAppointments } from '@/hooks/queries/useAppointmentQueries';
 import { useMyPrescriptions, useMyMedicalRecords, useMyLabReports } from '@/hooks/queries/useEhrQueries';
 import { useAuthStore } from '@/stores/authStore';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useReveal } from '@/lib/gsap';
 import { AiSymptomChecker } from '@/components/intelligence/AiSymptomChecker';
 import { Modal } from '@/components/ui/Modal';
@@ -25,12 +25,10 @@ export default function CitizenDashboard() {
   const { data: records } = useMyMedicalRecords();
   const { data: labs } = useMyLabReports();
   const [showAiChecker, setShowAiChecker] = useState(false);
-  const [now, setNow] = useState(Date.now());
   const { data: donor } = useDonorProfile();
   const bloodAlerts = useDonorBloodBroadcasts();
   const rootRef = useRef<HTMLDivElement>(null);
   useReveal(rootRef);
-  useEffect(() => { const t = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(t); }, []);
 
   const upcoming = (appointments ?? []).filter((a) => new Date(a.scheduled_at) > new Date() && a.status !== 'cancelled');
   const activePrescriptions = (prescriptions ?? []).filter(p => p.status === 'active').length;

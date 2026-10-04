@@ -10,7 +10,7 @@ import { Link } from 'react-router-dom';
 import { useMyAppointments } from '@/hooks/queries/useAppointmentQueries';
 import { useMyPrescriptions, useMyMedicalRecords, useMyLabReports } from '@/hooks/queries/useEhrQueries';
 import { useAuthStore } from '@/stores/authStore';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useReveal } from '@/lib/gsap';
 import { AiSymptomChecker } from '@/components/intelligence/AiSymptomChecker';
 import { Modal } from '@/components/ui/Modal';
@@ -36,11 +36,6 @@ export default function CitizenDashboard() {
   const activePrescriptions = (prescriptions ?? []).filter(p => p.status === 'active').length;
   const docsCount = (records?.length ?? 0) + (labs?.length ?? 0);
   const activeBloodAlerts = bloodAlerts.data ?? [];
-  const nextDonationAt = donor?.last_donation_at ? (() => { const d = new Date(donor.last_donation_at); d.setMonth(d.getMonth()+4); return d; })() : null;
-  const donationRemaining = nextDonationAt ? Math.max(0, nextDonationAt.getTime()-now) : 0;
-  const donationDays = Math.floor(donationRemaining/86400000);
-  const donationHours = Math.floor((donationRemaining%86400000)/3600000);
-  const donationMinutes = Math.floor((donationRemaining%3600000)/60000);
 
   return (
     <PageTransition>

@@ -211,14 +211,17 @@ Deno.serve(async (req) => {
       .publish('emergency:update', payload);
   }
 
-  if (action === 'status_changed' || action === 'agency_dispatches_changed') {
-    const { data: activeDispatches } = await service
+  if (action === 'status_changed') {
+    const { data: agencyDispatches } = await service
       .from('emergency_agency_dispatches')
       .select('id,agency_id,status')
       .eq('emergency_id', emergency.id)
-      .in('status', ['offered','acknowledged','en_route','on_scene']);
+      .in('status', ['offered','acknowledged','en_route','on_scene','cancelled']);
 
-    for (const dispatch of activeDispatches ?? []) {
+    const sent = new Set<string>();
+    for (const dispatch of agencyDispatches ?? []) {
+      if (sent.has(dispatch.agency_id)) continue;
+      sent.add(dispatch.agency_id);
       await rest.channels
         .get(`sos:agency:${dispatch.agency_id}`)
         .publish('emergency:update', {

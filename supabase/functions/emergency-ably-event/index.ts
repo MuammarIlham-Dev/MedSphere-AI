@@ -147,9 +147,15 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       allowed = !!membership && (
-        action === 'agency_dispatch_acknowledged' ||
-        action === 'agency_dispatch_declined' ||
-        action === 'agency_dispatch_status_changed'
+        (action === 'agency_dispatch_acknowledged'
+          && agencyDispatch.status === 'acknowledged'
+          && agencyDispatch.assigned_member_id === user.id)
+        || (action === 'agency_dispatch_declined'
+          && agencyDispatch.status === 'declined'
+          && agencyDispatch.assigned_member_id === null)
+        || (action === 'agency_dispatch_status_changed'
+          && agencyDispatch.assigned_member_id === user.id
+          && ['en_route','on_scene','completed'].includes(agencyDispatch.status))
       );
     } else if (['emergency_operator','admin','super_admin'].includes(role)) {
       allowed = action !== 'agency_dispatch_acknowledged' &&

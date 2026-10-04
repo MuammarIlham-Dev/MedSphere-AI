@@ -100,6 +100,7 @@ function CallInterface({ context }: { context: TelemedicineJoinContext }) {
   const leaveCall = async () => {
     if (finished) return;
     setFinished(true);
+    finalizedRef.current = true;
     await telemedicineService.leave(context.sessionId).catch(() => undefined);
     await callObject?.leave();
     callObject?.destroy();

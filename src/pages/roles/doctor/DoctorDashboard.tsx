@@ -120,7 +120,7 @@ export default function DoctorDashboard() {
                     {NEXT[a.status] === 'completed' ? 'Complete' : 'Advance'}
                   </Button>
                 )}
-                {a.type === 'video' && a.status !== 'completed' && (
+                {a.type === 'video' && ['confirmed','checked_in','in_progress'].includes(a.status) && (
                   <Link to={`/app/consult/${a.id}`}><Button size="sm" variant="secondary">Join video</Button></Link>
                 )}
                 <Button size="sm" variant="secondary" onClick={() => setEhrPatient({ patientId: a.patient_id, patientName: a.patient_name || 'Unknown', appointmentId: a.id })}>

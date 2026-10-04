@@ -65,6 +65,13 @@ alter table public.emergency_agencies enable row level security;
 alter table public.emergency_agency_members enable row level security;
 alter table public.emergency_agency_dispatches enable row level security;
 
+revoke all on table public.emergency_agencies from anon, authenticated;
+revoke all on table public.emergency_agency_members from anon, authenticated;
+revoke all on table public.emergency_agency_dispatches from anon, authenticated;
+grant select on table public.emergency_agencies to authenticated;
+grant select on table public.emergency_agency_members to authenticated;
+grant select on table public.emergency_agency_dispatches to authenticated;
+
 drop policy if exists emergency_agencies_read on public.emergency_agencies;
 create policy emergency_agencies_read on public.emergency_agencies
 for select using (
@@ -145,6 +152,13 @@ begin
   if not public.is_admin() then raise exception 'Administrator access required'; end if;
   if p_profile_id is null then raise exception 'Profile is required'; end if;
 
+  if exists (
+    select 1 from public.profiles
+    where id=p_profile_id and role in ('admin','super_admin')
+  ) then
+    raise exception 'Administrative profiles cannot be converted to responders';
+  end if;
+
   update public.profiles
   set role = case when p_enabled then 'emergency_responder'::public.app_role else 'citizen'::public.app_role end
   where id=p_profile_id
@@ -174,6 +188,13 @@ begin
     where p.id=p_user_id and p.role='emergency_responder'
   ) then
     raise exception 'User must be an emergency responder';
+  end if;
+
+  if not exists (
+    select 1 from public.emergency_agencies a
+    where a.id=p_agency_id and a.is_active and a.verification='verified'
+  ) then
+    raise exception 'Agency must be verified and active';
   end if;
 
   insert into public.emergency_agency_members(agency_id,user_id,member_role,is_active)

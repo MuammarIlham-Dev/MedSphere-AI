@@ -138,7 +138,7 @@ create or replace function public.set_emergency_responder_role(
   p_profile_id uuid,
   p_enabled boolean
 ) returns public.profiles
-language plpgsql security definer set search_path = public as $
+language plpgsql security definer set search_path = public as $emergency$
 declare
   result public.profiles;
 begin

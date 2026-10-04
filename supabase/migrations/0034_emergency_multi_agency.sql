@@ -517,7 +517,9 @@ declare d public.emergency_agency_dispatches; a public.emergency_agencies;
 begin
   if public.current_role()<>'emergency_responder' then raise exception 'Responder access required'; end if;
 
-  select d.* into d from public.emergency_agency_dispatches d for update;
+  select ed.* into d from public.emergency_agency_dispatches ed
+  where ed.id = p_dispatch_id
+  for update;
   if not found then raise exception 'Dispatch not found'; end if;
 
   if not exists (
@@ -628,17 +630,18 @@ language plpgsql security definer set search_path = public as $$
 declare
   r public.app_role;
   operator_city text;
+  incident_id uuid;
 begin
   r:=public.current_role();
   if r not in ('emergency_operator','admin','super_admin') then raise exception 'Unauthorized emergency operator feed access'; end if;
 
   if r in ('emergency_operator','admin','super_admin') then
-    for operator_city in
-      select distinct e.id::text from public.emergencies e
+    for incident_id in
+      select e.id from public.emergencies e
       where e.status in ('active','dispatched','on_scene','transporting','arrived')
     loop
       begin
-        perform public.escalate_expired_emergency_agency_dispatches(operator_city::uuid);
+        perform public.escalate_expired_emergency_agency_dispatches(incident_id);
       exception when others then
         -- A stale secondary-agency attempt must never block the core ambulance dispatch feed.
         null;

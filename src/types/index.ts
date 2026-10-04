@@ -2,7 +2,7 @@
 
 export type Role =
   | 'citizen' | 'doctor' | 'hospital' | 'laboratory' | 'pharmacy' | 'blood_bank'
-  | 'organ_authority' | 'ambulance_driver' | 'emergency_operator' | 'government'
+  | 'organ_authority' | 'ambulance_driver' | 'emergency_operator' | 'emergency_responder' | 'government'
   | 'researcher' | 'volunteer' | 'admin' | 'super_admin';
 
 export type VerificationStatus = 'pending' | 'verified' | 'rejected' | 'suspended';

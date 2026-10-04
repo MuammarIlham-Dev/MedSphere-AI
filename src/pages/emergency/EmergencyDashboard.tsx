@@ -13,6 +13,12 @@ import {
   useDispatchNearest,
   useCancelEmergencyDispatch,
 } from '@/hooks/queries/useEmergencyQueries';
+import {
+  useEmergencyAgencyDispatches,
+  useDispatchRequiredEmergencyAgencies,
+  useEmergencyAgencyCancelAction,
+  useResolveNonAmbulanceEmergency,
+} from '@/hooks/queries/useEmergencyAgencyQueries';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { emergencyService } from '@/services/emergency.service';
 import { formatDateTime } from '@/lib/utils';
@@ -65,9 +71,13 @@ export default function EmergencyDashboard() {
   const selected = emergencies?.find((e) => e.id === selectedId);
   const candidates = useEmergencyDispatchCandidates(selectedId);
   const currentDispatch = useEmergencyCurrentDispatch(selectedId);
+  const agencyDispatches = useEmergencyAgencyDispatches(selectedId, profile?.city);
   const dispatchNearest = useDispatchNearest();
+  const dispatchAgencies = useDispatchRequiredEmergencyAgencies();
   const cancelDispatch = useCancelEmergencyDispatch();
+  const cancelAgencyDispatch = useEmergencyAgencyCancelAction();
   const statusAction = useEmergencyStatusAction();
+  const resolveNonAmbulance = useResolveNonAmbulanceEmergency();
 
   return (
     <PageTransition>
@@ -87,42 +97,45 @@ export default function EmergencyDashboard() {
             {emergencies?.map((e) => {
               const dispatchable = e.status === 'active' && ['medical','accident','other'].includes(e.type);
               return (
-                <button
+                <div
                   key={e.id}
-                  onClick={() => setSelectedId(e.id)}
-                  className={`block w-full p-5 text-left transition hover:bg-slate-50 dark:hover:bg-surface-dark-muted ${e.id === selectedId ? 'bg-brand-50/50 dark:bg-brand-950/20' : ''}`}
+                  className={`flex flex-col gap-4 p-5 transition hover:bg-slate-50 dark:hover:bg-surface-dark-muted lg:flex-row lg:items-center lg:justify-between ${e.id === selectedId ? 'bg-brand-50/50 dark:bg-brand-950/20' : ''}`}
                 >
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge tone={e.status === 'active' ? 'danger' : 'info'}>{e.status.replace('_',' ').toUpperCase()}</Badge>
-                        <span className="text-sm font-semibold">SOS-{e.id.slice(0, 6).toUpperCase()}</span>
-                        <span className="text-xs text-muted-foreground">{e.city ?? 'National'}</span>
-                        <span className="text-xs text-muted-foreground">{formatDateTime(e.created_at)}</span>
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-4 text-sm">
-                        <span className="flex items-center gap-2"><IoPulseOutline className="text-danger-500" />{e.type} emergency</span>
-                        <span className="flex items-center gap-2"><IoLocationOutline className="text-brand-500" />{e.lat.toFixed(4)}, {e.lng.toFixed(4)}</span>
-                      </div>
-                      {e.address && <p className="mt-1 truncate text-xs text-muted-foreground">{e.address}</p>}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedId(e.id)}
+                    aria-label={`Select SOS-${e.id.slice(0, 6).toUpperCase()}`}
+                    className="min-w-0 flex-1 text-left"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge tone={e.status === 'active' ? 'danger' : 'info'}>{e.status.replace('_',' ').toUpperCase()}</Badge>
+                      <span className="text-sm font-semibold">SOS-{e.id.slice(0, 6).toUpperCase()}</span>
+                      <span className="text-xs text-muted-foreground">{e.city ?? 'National'}</span>
+                      <span className="text-xs text-muted-foreground">{formatDateTime(e.created_at)}</span>
                     </div>
-                    <div className="shrink-0">
-                      {dispatchable && (
-                        <Button
-                          onClick={(event) => { event.stopPropagation(); dispatchNearest.mutate(e.id); }}
-                          loading={dispatchNearest.isPending && dispatchNearest.variables === e.id}
-                        >
-                          <IoNavigateOutline className="mr-2" /> Offer nearest
-                        </Button>
-                      )}
-                      {e.status === 'active' && !dispatchable && (
-                        <span className="rounded-xl border border-warning-200 bg-warning-50 px-3 py-2 text-xs font-medium text-warning-800 dark:border-warning-900 dark:bg-warning-950/30 dark:text-warning-300">
-                          {e.type === 'fire' ? 'Fire agency required' : e.type === 'police' ? 'Police agency required' : 'Specialized routing'}
-                        </span>
-                      )}
+                    <div className="mt-2 flex flex-wrap gap-4 text-sm">
+                      <span className="flex items-center gap-2"><IoPulseOutline className="text-danger-500" />{e.type} emergency</span>
+                      <span className="flex items-center gap-2"><IoLocationOutline className="text-brand-500" />{e.lat.toFixed(4)}, {e.lng.toFixed(4)}</span>
                     </div>
+                    {e.address && <p className="mt-1 truncate text-xs text-muted-foreground">{e.address}</p>}
+                  </button>
+
+                  <div className="shrink-0">
+                    {dispatchable && (
+                      <Button
+                        onClick={() => dispatchNearest.mutate(e.id)}
+                        loading={dispatchNearest.isPending && dispatchNearest.variables === e.id}
+                      >
+                        <IoNavigateOutline className="mr-2" /> Offer nearest
+                      </Button>
+                    )}
+                    {e.status === 'active' && !dispatchable && (
+                      <span className="rounded-xl border border-warning-200 bg-warning-50 px-3 py-2 text-xs font-medium text-warning-800 dark:border-warning-900 dark:bg-warning-950/30 dark:text-warning-300">
+                        {e.type === 'fire' ? 'Fire agency required' : e.type === 'police' ? 'Police agency required' : 'Specialized routing'}
+                      </span>
+                    )}
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>
@@ -145,6 +158,61 @@ export default function EmergencyDashboard() {
               </div>
 
               {currentDispatch.isLoading && <Skeleton className="h-20 w-full" />}
+              {agencyDispatches.isLoading && <Skeleton className="h-28 w-full" />}
+
+              {selected.status === 'active' && selected.type !== 'medical' && (
+                <div className="rounded-2xl border border-slate-200 p-4 dark:border-white/10">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-semibold">Multi-agency response</p>
+                      <p className="text-xs text-muted-foreground">Fire, Police, Rescue and EMS agency routing is independent from the ambulance dispatch.</p>
+                    </div>
+                    <Button
+                      loading={dispatchAgencies.isPending}
+                      onClick={() => dispatchAgencies.mutate(selected.id)}
+                    >
+                      Dispatch required services
+                    </Button>
+                  </div>
+
+                  <div className="mt-3 space-y-2">
+                    {!agencyDispatches.isLoading && (agencyDispatches.data?.length ?? 0) === 0 && (
+                      <p className="text-sm text-muted-foreground">No agency dispatch record yet.</p>
+                    )}
+                    {agencyDispatches.data?.map((d) => (
+                      <div key={d.dispatch_id} className="rounded-xl border border-slate-200 p-3 dark:border-white/10">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold">{d.agency_name}</p>
+                            <p className="text-xs capitalize text-muted-foreground">{d.agency_type} · {d.distance_km != null ? d.distance_km.toFixed(1) + ' km' : 'distance unknown'}</p>
+                          </div>
+                          <Badge tone={
+                            ['acknowledged','en_route','on_scene','completed'].includes(d.status) ? 'success'
+                              : d.status === 'declined' || d.status === 'timed_out' ? 'warning'
+                              : d.status === 'cancelled' ? 'neutral'
+                              : 'info'
+                          }>
+                            {d.status.replace('_',' ').toUpperCase()}
+                          </Badge>
+                        </div>
+                        {d.status === 'offered' && (
+                          <div className="mt-2 flex items-center justify-between gap-3">
+                            <span className="text-[11px] text-muted-foreground">Offer expires {formatDateTime(d.expires_at)}</span>
+                            <Button
+                              variant="ghost"
+                              loading={cancelAgencyDispatch.isPending}
+                              onClick={() => cancelAgencyDispatch.mutate({ dispatchId:d.dispatch_id, emergencyId:selected.id })}
+                            >
+                              Cancel offer
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {currentDispatch.data && (
                 <div className="rounded-2xl border border-brand-200 p-4 dark:border-brand-900">
                   <div className="flex items-center justify-between gap-3">
@@ -195,6 +263,25 @@ export default function EmergencyDashboard() {
                   <IoCheckmarkCircleOutline className="mr-2" /> Mark emergency resolved
                 </Button>
               )}
+
+              {(() => {
+                const required = selected.type === 'fire' ? ['fire','ems'] : selected.type === 'police' ? ['police','ems'] : [];
+                const latest = new Map<string, string>();
+                for (const row of agencyDispatches.data ?? []) latest.set(row.agency_type, row.status);
+                const ready = selected.status === 'active'
+                  && !selected.assigned_ambulance_id
+                  && required.length > 0
+                  && required.every((type) => latest.get(type) === 'completed');
+                return ready ? (
+                  <Button
+                    className="w-full"
+                    loading={resolveNonAmbulance.isPending}
+                    onClick={() => resolveNonAmbulance.mutate(selected.id)}
+                  >
+                    <IoCheckmarkCircleOutline className="mr-2" /> Resolve agency incident
+                  </Button>
+                ) : null;
+              })()}
 
               {['dispatched','on_scene','transporting'].includes(selected.status) && (
                 <LiveLocation ambulanceId={selected.assigned_ambulance_id} />

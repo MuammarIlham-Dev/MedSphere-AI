@@ -17,6 +17,12 @@ const ALLOWED = new Set([
   'dispatch_declined',
   'dispatch_cancelled',
   'status_changed',
+  'agency_dispatches_changed',
+  'agency_dispatch_acknowledged',
+  'agency_dispatch_declined',
+  'agency_dispatch_status_changed',
+  'agency_dispatch_timed_out',
+  'agency_dispatch_cancelled',
 ]);
 
 Deno.serve(async (req) => {
@@ -36,9 +42,12 @@ Deno.serve(async (req) => {
   let body: any;
   try { body = await req.json(); } catch { return new Response('invalid json', { status: 400, headers: CORS }); }
 
-  const { action, emergencyId } = body ?? {};
+  const { action, emergencyId, dispatchId } = body ?? {};
   if (!ALLOWED.has(action) || typeof emergencyId !== 'string') {
     return new Response('invalid event', { status: 400, headers: CORS });
+  }
+  if (dispatchId !== undefined && typeof dispatchId !== 'string') {
+    return new Response('invalid dispatch', { status: 400, headers: CORS });
   }
 
   const service = createClient(
@@ -67,10 +76,11 @@ Deno.serve(async (req) => {
     allowed = true;
   } else if (role === 'citizen') {
     allowed = emergency.reporter_id === user.id && action === 'sos_created';
-  } else if (role === 'emergency_operator' || role === 'government') {
-    allowed = action !== 'sos_created'
-      ? (!profile?.city || !emergency.city || profile.city === emergency.city)
-      : true;
+  } else if (role === 'emergency_operator') {
+    allowed = (
+      ['dispatch_offered','dispatch_cancelled','status_changed','agency_dispatches_changed','agency_dispatch_cancelled'].includes(action)
+      && (!profile?.city || !emergency.city || profile.city === emergency.city)
+    );
   } else if (role === 'ambulance_driver') {
     const { data: dispatch } = await service
       .from('emergency_dispatches')
@@ -104,6 +114,55 @@ Deno.serve(async (req) => {
     allowed = !!hospital && action === 'status_changed';
   }
 
+  let agencyDispatch: any = null;
+  let agency: any = null;
+
+  if (action.startsWith('agency_dispatch_') && action !== 'agency_dispatches_changed') {
+    if (!dispatchId) return new Response('dispatch id required', { status: 400, headers: CORS });
+
+    const { data: dispatch } = await service
+      .from('emergency_agency_dispatches')
+      .select('id,emergency_id,agency_id,assigned_member_id,status')
+      .eq('id', dispatchId)
+      .eq('emergency_id', emergency.id)
+      .single();
+    agencyDispatch = dispatch;
+
+    if (agencyDispatch) {
+      const { data: agencyRow } = await service
+        .from('emergency_agencies')
+        .select('id,name,agency_type,city')
+        .eq('id', agencyDispatch.agency_id)
+        .single();
+      agency = agencyRow;
+    }
+
+    if (role === 'emergency_responder') {
+      const { data: membership } = await service
+        .from('emergency_agency_members')
+        .select('agency_id,is_active')
+        .eq('agency_id', agencyDispatch?.agency_id)
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      allowed = !!membership && (
+        (action === 'agency_dispatch_acknowledged'
+          && agencyDispatch.status === 'acknowledged'
+          && agencyDispatch.assigned_member_id === user.id)
+        || (action === 'agency_dispatch_declined'
+          && agencyDispatch.status === 'declined'
+          && agencyDispatch.assigned_member_id === null)
+        || (action === 'agency_dispatch_status_changed'
+          && agencyDispatch.assigned_member_id === user.id
+          && ['en_route','on_scene','completed'].includes(agencyDispatch.status))
+      );
+    } else if (['emergency_operator','admin','super_admin'].includes(role)) {
+      allowed = action !== 'agency_dispatch_acknowledged' &&
+        (!profile?.city || !emergency.city || profile.city === emergency.city);
+    }
+  }
+
   if (!allowed) return new Response('forbidden', { status: 403, headers: CORS });
 
   const payload = {
@@ -112,6 +171,10 @@ Deno.serve(async (req) => {
     status: emergency.status,
     ambulanceId: emergency.assigned_ambulance_id,
     hospitalId: emergency.assigned_hospital_id,
+    dispatchId: dispatchId ?? null,
+    agencyId: agencyDispatch?.agency_id ?? null,
+    agencyType: agency?.agency_type ?? null,
+    agencyStatus: agencyDispatch?.status ?? null,
     at: new Date().toISOString(),
   };
 
@@ -125,6 +188,59 @@ Deno.serve(async (req) => {
     await rest.channels
       .get(`sos:ambulance:${emergency.assigned_ambulance_id}`)
       .publish('emergency:update', payload);
+  }
+
+  if (action === 'agency_dispatches_changed') {
+    const { data: activeDispatches } = await service
+      .from('emergency_agency_dispatches')
+      .select('id,agency_id,status')
+      .eq('emergency_id', emergency.id)
+      .in('status', ['offered','acknowledged','en_route','on_scene']);
+
+    for (const dispatch of activeDispatches ?? []) {
+      await rest.channels
+        .get(`sos:agency:${dispatch.agency_id}`)
+        .publish('emergency:update', {
+          emergencyId: emergency.id,
+          action,
+          status: emergency.status,
+          dispatchId: dispatch.id,
+          agencyId: dispatch.agency_id,
+          agencyStatus: dispatch.status,
+          at: new Date().toISOString(),
+        });
+    }
+  }
+
+  if (agencyDispatch?.agency_id) {
+    await rest.channels
+      .get(`sos:agency:${agencyDispatch.agency_id}`)
+      .publish('emergency:update', payload);
+  }
+
+  if (action === 'status_changed') {
+    const { data: agencyDispatches } = await service
+      .from('emergency_agency_dispatches')
+      .select('id,agency_id,status')
+      .eq('emergency_id', emergency.id)
+      .in('status', ['offered','acknowledged','en_route','on_scene','cancelled']);
+
+    const sent = new Set<string>();
+    for (const dispatch of agencyDispatches ?? []) {
+      if (sent.has(dispatch.agency_id)) continue;
+      sent.add(dispatch.agency_id);
+      await rest.channels
+        .get(`sos:agency:${dispatch.agency_id}`)
+        .publish('emergency:update', {
+          emergencyId: emergency.id,
+          action,
+          status: emergency.status,
+          dispatchId: dispatch.id,
+          agencyId: dispatch.agency_id,
+          agencyStatus: dispatch.status,
+          at: new Date().toISOString(),
+        });
+    }
   }
 
   return new Response(JSON.stringify({ ok: true }), {

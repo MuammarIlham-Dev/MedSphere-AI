@@ -72,6 +72,9 @@ medsphere-ai/
 │   │   ├── organ/OrganDashboard.tsx
 │   │   ├── blood/BloodBankDashboard.tsx
 │   │   ├── emergency/EmergencySOS.tsx
+│   │   ├── emergency/EmergencyDashboard.tsx
+│   │   ├── emergency/AmbulanceDriverDashboard.tsx
+│   │   ├── emergency/EmergencyAgencyDashboard.tsx
 │   │   ├── government/GovDashboard.tsx
 │   │   └── admin/AdminDashboard.tsx
 │   └── test/                         # setup, unit + component tests
@@ -95,7 +98,7 @@ cp .env.example .env            # fill in values (see section 4)
 
 # Local Supabase (Postgres + Auth + Storage + Edge runtime)
 supabase start
-supabase db push                # applies migrations 0001–0004
+supabase db push                # applies the full ordered migration set
 pnpm db:types                   # regenerates src/types/database.types.ts
 
 # Secrets for the local edge function
@@ -114,8 +117,9 @@ pnpm dev                        # http://localhost:5173
 | `VITE_APP_NAME` | client | Display name |
 | `ABLY_API_KEY` | **server (edge secret)** | Used by `ably-token` function only |
 | `SUPABASE_SERVICE_ROLE_KEY` | **server (edge secret)** | Auto-injected into edge functions |
+| `EMERGENCY_ESCALATION_SECRET` | **server (edge secret)** | Scheduler-only authentication for the Emergency escalation worker |
 
-The service-role key **never** ships to the browser. All privileged logic lives in SQL `security definer` functions or edge functions.
+The service-role key **never** ships to the browser. All privileged logic lives in SQL `security definer` functions or edge functions. Emergency responder roles cannot self-register; an administrator must provision the role and agency membership.
 
 ## 5. Scripts
 
@@ -156,6 +160,7 @@ pages → components → hooks (TanStack Query) → services (typed API) → sup
 | `sos:operator:{city}` | Regional SOS dispatch events | authorized dispatch operators/government |
 | `sos:emergency:{id}` | Per-incident lifecycle updates | reporter + authorized responders |
 | `sos:ambulance:{id}` | Dispatch offers/lifecycle updates | assigned ambulance driver |
+| `sos:agency:{id}` | Fire/Police/Rescue/EMS agency dispatch | verified agency members |
 | `sos:*` / generic tracking | Legacy realtime surface | retained only for non-emergency modules; Emergency SOS uses the scoped channels above |
 
 Supabase remains authoritative for durable emergency state and auditability. Ably carries high-frequency ambulance GPS and low-latency SOS dispatch/lifecycle events; database polling remains the recovery path when realtime is unavailable. Emergency SOS mutations are server-authorized through Supabase RPCs and a trusted Ably event gateway.
@@ -239,8 +244,11 @@ jobs:
 2. `supabase link --project-ref <ref>` → `supabase db push`.
 3. Auth providers: enable Email (confirm email ON), Google (OAuth client), Phone (Twilio/MessageBird). Enable TOTP MFA.
 4. Captcha: paste Turnstile **secret** into Supabase Auth → Bot protection.
-5. `supabase secrets set ABLY_API_KEY=...` → `supabase functions deploy ably-token`.
-6. Storage buckets are created by migration `0004`; confirm policies.
+5. `supabase secrets set ABLY_API_KEY=...`.
+6. Deploy realtime functions: `supabase functions deploy ably-token`, `supabase functions deploy blood-ably-token`, `supabase functions deploy blood-ably-event`, `supabase functions deploy emergency-ably-token`, `supabase functions deploy emergency-ably-event`, and `supabase functions deploy emergency-escalation`.
+7. Apply migrations in order through the latest migration (currently `0035_emergency_multi_agency.sql`).
+8. Set `EMERGENCY_ESCALATION_SECRET` and schedule the `emergency-escalation` function from a server-side scheduler at a short interval.
+9. Provision verified emergency agencies and responder membership through the administrator-only RPCs.
 
 **Ably** — Create app → restrict API key; no client-side key is ever used (token auth only).
 

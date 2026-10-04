@@ -11,6 +11,7 @@ import {
   IoBusinessOutline, IoChatbubbleOutline, IoSearchOutline, IoBeakerOutline, IoMedicalOutline, IoDocumentTextOutline, IoBedOutline,
   IoCloseOutline,
   IoCarOutline,
+  IoShieldOutline,
 } from 'react-icons/io5';
 import { MobileBottomNav } from './MobileBottomNav';
 import { cn, initials, timeAgo } from '@/lib/utils';
@@ -52,6 +53,7 @@ const NAV: Partial<Record<Role, NavItem[]>> = {
   organ_authority: [{ to: '/app/organ', label: 'Matching Engine', icon: <IoBodyOutline /> }],
   emergency_operator: [{ to: '/app/emergency-dispatch', label: 'Emergencies', icon: <IoMedkitOutline /> }],
   ambulance_driver: [{ to: '/app/ambulance', label: 'Ambulance Response', icon: <IoCarOutline /> }],
+  emergency_responder: [{ to: '/app/agency-response', label: 'Agency Response', icon: <IoShieldOutline /> }],
   laboratory: [{ to: '/app/laboratory', label: 'Laboratory', icon: <IoBeakerOutline /> }],
   pharmacy: [{ to: '/app/pharmacy', label: 'Pharmacy', icon: <IoMedicalOutline /> }],
   government: [{ to: '/app/gov', label: 'Public Health', icon: <IoStatsChartOutline /> }],

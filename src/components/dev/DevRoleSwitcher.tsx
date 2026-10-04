@@ -11,6 +11,7 @@ const ROLES: Array<{ value: Role; label: string }> = [
   { value: 'blood_bank',         label: '🩸 Blood Bank' },
   { value: 'organ_authority',    label: '🫀 Organ Authority' },
   { value: 'emergency_operator', label: '🚨 Emergency Operator' },
+  { value: 'emergency_responder', label: '🛰️ Emergency Responder' },
   { value: 'government',         label: '🏛️ Government' },
   { value: 'researcher',         label: '🔬 Researcher' },
   { value: 'admin',              label: '🛡️ Admin' },

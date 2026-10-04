@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { useEffect, useState } from 'react';
 import { IoMedkitOutline, IoNavigateOutline, IoCheckmarkCircle, IoLocationOutline, IoFlameOutline, IoCarOutline, IoShieldCheckmarkOutline } from 'react-icons/io5';
 import { useSOS, useActiveEmergency, useAmbulanceTrack } from '@/hooks/queries/useEmergencyQueries';
+import { useMyEmergencyAgencyResponse } from '@/hooks/queries/useEmergencyAgencyQueries';
 import { useAuthStore } from '@/stores/authStore';
 import { useUiStore } from '@/stores/uiStore';
 
@@ -23,6 +24,7 @@ export default function EmergencySOS() {
   const sos = useSOS();
   const { data: emergency } = useActiveEmergency();
   const ambulanceLocation = useAmbulanceTrack(emergency?.assigned_ambulance_id ?? undefined);
+  const agencyResponse = useMyEmergencyAgencyResponse(emergency?.id);
   const [scenario, setScenario] = useState<(typeof SCENARIOS)[number]['value']>('medical');
   const [now, setNow] = useState(() => Date.now());
 
@@ -160,6 +162,34 @@ export default function EmergencySOS() {
                     </li>
                   ))}
                 </ol>
+
+                {(agencyResponse.data ?? []).length > 0 && (
+                  <div className="mt-5 rounded-2xl border border-slate-200 p-4 dark:border-white/10">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-semibold">Multi-agency response</p>
+                        <p className="text-xs text-muted-foreground">Status shared from the authorized incident network.</p>
+                      </div>
+                    </div>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {agencyResponse.data!.map((item) => (
+                        <div key={item.dispatch_id} className="rounded-xl bg-surface-muted p-3 dark:bg-surface-dark-muted">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-sm font-medium capitalize">{item.agency_type === 'ems' ? 'EMS' : item.agency_type}</span>
+                            <span className={cn(
+                              'text-xs font-semibold uppercase',
+                              ['acknowledged','en_route','on_scene','completed'].includes(item.status) ? 'text-success' :
+                              ['declined','timed_out','cancelled'].includes(item.status) ? 'text-warning-600' : 'text-info-600',
+                            )}>
+                              {item.status.replace('_',' ')}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-xs text-muted-foreground">{item.agency_name}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {emergency.assigned_ambulance_id && (
                   <div className="mt-5 space-y-3 rounded-2xl border border-brand-200 bg-brand-50/60 p-4 text-brand-800 dark:border-brand-900 dark:bg-brand-950/30 dark:text-brand-200">

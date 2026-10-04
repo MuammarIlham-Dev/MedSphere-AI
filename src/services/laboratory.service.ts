@@ -55,6 +55,8 @@ interface LabWorklistRow {
   report_code: string | null;
   report_file_id: string | null;
   report_authored_by: string | null;
+  report_version_no: number;
+  report_is_current: boolean;
 }
 
 export interface LabReportArchiveRow {

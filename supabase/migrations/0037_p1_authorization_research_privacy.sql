@@ -516,3 +516,69 @@ for insert with check (
 
 -- Keep public discovery data available, but do not expose inventory for unverified
 -- pharmacies through the broad legacy policy above.
+
+
+-- ---------------------------------------------------------------------------
+-- Role-request lifecycle: explicit administrator provisioning
+-- ---------------------------------------------------------------------------
+
+create or replace function public.resolve_requested_role(
+  p_profile_id uuid,
+  p_approve boolean
+) returns public.profiles
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  target public.profiles%rowtype;
+  requested public.app_role;
+begin
+  if auth.uid() is null or not public.is_admin() then
+    raise exception 'Administrator access required';
+  end if;
+
+  select * into target
+  from public.profiles
+  where id=p_profile_id
+  for update;
+
+  if not found then raise exception 'Profile not found'; end if;
+  if target.role in ('admin','super_admin') then
+    raise exception 'Administrative profiles cannot be changed through role requests';
+  end if;
+
+  requested := target.requested_role;
+  if requested is null then
+    raise exception 'No pending role request';
+  end if;
+
+  if requested in ('admin','super_admin','emergency_responder') then
+    raise exception 'Role cannot be provisioned through public signup requests';
+  end if;
+
+  update public.profiles
+  set role = case when p_approve then requested else role end,
+      requested_role = null
+  where id=target.id
+  returning * into target;
+
+  insert into public.audit_logs(actor_id,action,table_name,record_id,new_data)
+  values(
+    auth.uid(),
+    case when p_approve then 'profile.role_request.approved' else 'profile.role_request.rejected' end,
+    'profiles',
+    target.id::text,
+    jsonb_build_object(
+      'requested_role',requested,
+      'provisioned_role',target.role,
+      'approved',p_approve
+    )
+  );
+
+  return target;
+end;
+$$;
+
+revoke all on function public.resolve_requested_role(uuid,boolean) from public, anon;
+grant execute on function public.resolve_requested_role(uuid,boolean) to authenticated;

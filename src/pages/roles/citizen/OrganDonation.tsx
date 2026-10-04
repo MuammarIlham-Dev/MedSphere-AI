@@ -56,7 +56,6 @@ export default function OrganDonation() {
     register({
       blood_group: bloodGroup as BloodGroup,
       organs: selectedOrgans,
-      consent: 'pending',
       hla: []
     });
   };

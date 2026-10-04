@@ -225,6 +225,10 @@ begin
   end if;
   if nullif(trim(p_title), '') is null then raise exception 'record title is required'; end if;
 
+  if exists (select 1 from public.medical_records where appointment_id = p_appointment_id and type = 'consultation') then
+    raise exception 'a consultation record already exists for this appointment';
+  end if;
+
   insert into public.medical_records (
     patient_id, doctor_id, appointment_id, type, title, diagnosis, notes
   ) values (
@@ -240,11 +244,10 @@ begin
     if p_prescription_items is not null then
       for item in select * from jsonb_array_elements(p_prescription_items) loop
         insert into public.prescription_items (
-          prescription_id, medicine_id, custom_medicine_name, dosage, frequency, duration_days, instructions
+          prescription_id, medicine_id, dosage, frequency, duration_days, instructions
         ) values (
           rx_id,
           nullif(trim(item->>'medicine_id'), '')::uuid,
-          nullif(trim(item->>'custom_medicine_name'), ''),
           nullif(trim(item->>'dosage'), ''),
           nullif(trim(item->>'frequency'), ''),
           (item->>'duration_days')::int,

@@ -6,7 +6,12 @@ const SUPABASE_URL = process.env.VITE_SUPABASE_URL as string;
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY as string;
 
 // Direct DB connection for fixtures since we don't have service_role_key in this environment
-const sql = postgres('postgresql://postgres.tsnwshezadvtmjqjlfot:vVxhc0oCoJFlBmM8@aws-0-ap-south-1.pooler.supabase.com:6543/postgres', { ssl: 'require' });
+// SECURITY: Using environment variable for database connection
+const DB_URL = process.env.SUPABASE_DB_URL || process.env.VITE_SUPABASE_DB_URL;
+if (!DB_URL) {
+  throw new Error('SUPABASE_DB_URL environment variable is required for integration tests');
+}
+const sql = postgres(DB_URL, { ssl: 'require' });
 
 describe('Doctor Tier Database Integration with Fixtures', () => {
 
@@ -19,6 +24,9 @@ describe('Doctor Tier Database Integration with Fixtures', () => {
 
   beforeAll(async () => {
     // 0. Cleanup any lingering data from failed runs
+    await sql`DELETE FROM public.prescription_items WHERE prescription_id IN (SELECT id FROM public.prescriptions WHERE patient_id = ${testPatientUserId} OR doctor_id IN (SELECT id FROM public.doctors WHERE profile_id = ${testDoctorUserId}))`;
+    await sql`DELETE FROM public.prescriptions WHERE patient_id = ${testPatientUserId} OR doctor_id IN (SELECT id FROM public.doctors WHERE profile_id = ${testDoctorUserId})`;
+    await sql`DELETE FROM public.medical_records WHERE patient_id = ${testPatientUserId} OR doctor_id IN (SELECT id FROM public.doctors WHERE profile_id = ${testDoctorUserId})`;
     await sql`DELETE FROM public.appointment_feedback WHERE appointment_id IN (SELECT id FROM public.appointments WHERE patient_id = ${testPatientUserId} OR doctor_id IN (SELECT id FROM public.doctors WHERE profile_id = ${testDoctorUserId}))`;
     await sql`DELETE FROM public.appointments WHERE patient_id = ${testPatientUserId} OR doctor_id IN (SELECT id FROM public.doctors WHERE profile_id = ${testDoctorUserId})`;
     await sql`DELETE FROM public.doctors WHERE profile_id = ${testDoctorUserId}`;
@@ -79,6 +87,11 @@ describe('Doctor Tier Database Integration with Fixtures', () => {
   });
 
   afterAll(async () => {
+    // Delete dependent records first using stable IDs
+    await sql`DELETE FROM public.prescription_items WHERE prescription_id IN (SELECT id FROM public.prescriptions WHERE patient_id = ${testPatientUserId} OR doctor_id IN (SELECT id FROM public.doctors WHERE profile_id = ${testDoctorUserId}))`;
+    await sql`DELETE FROM public.prescriptions WHERE patient_id = ${testPatientUserId} OR doctor_id IN (SELECT id FROM public.doctors WHERE profile_id = ${testDoctorUserId})`;
+    await sql`DELETE FROM public.medical_records WHERE patient_id = ${testPatientUserId} OR doctor_id IN (SELECT id FROM public.doctors WHERE profile_id = ${testDoctorUserId})`;
+    
     await sql`DELETE FROM public.appointment_feedback WHERE appointment_id IN (SELECT id FROM public.appointments WHERE patient_id = ${testPatientUserId} OR doctor_id IN (SELECT id FROM public.doctors WHERE profile_id = ${testDoctorUserId}))`;
     await sql`DELETE FROM public.appointments WHERE patient_id = ${testPatientUserId} OR doctor_id IN (SELECT id FROM public.doctors WHERE profile_id = ${testDoctorUserId})`;
     await sql`DELETE FROM public.doctors WHERE profile_id = ${testDoctorUserId}`;
@@ -153,6 +166,18 @@ describe('Doctor Tier Database Integration with Fixtures', () => {
       const doc = await sql`SELECT rating_avg, rating_count FROM public.doctors WHERE id = ${testDoctorId}`;
       expect(Number(doc[0]?.rating_avg)).toBe(5);
       expect(Number(doc[0]?.rating_count)).toBe(1);
+
+      // Test UPDATE
+      await sql`UPDATE public.appointment_feedback SET rating = 3 WHERE appointment_id = ${apt[0]?.id}`;
+      const docAfterUpdate = await sql`SELECT rating_avg, rating_count FROM public.doctors WHERE id = ${testDoctorId}`;
+      expect(Number(docAfterUpdate[0]?.rating_avg)).toBe(3);
+      expect(Number(docAfterUpdate[0]?.rating_count)).toBe(1);
+
+      // Test DELETE
+      await sql`DELETE FROM public.appointment_feedback WHERE appointment_id = ${apt[0]?.id}`;
+      const docAfterDelete = await sql`SELECT rating_avg, rating_count FROM public.doctors WHERE id = ${testDoctorId}`;
+      expect(Number(docAfterDelete[0]?.rating_avg)).toBe(0);
+      expect(Number(docAfterDelete[0]?.rating_count)).toBe(0);
     });
   });
 
@@ -214,6 +239,256 @@ describe('Doctor Tier Database Integration with Fixtures', () => {
         error = err;
       }
       expect(error).toBeDefined();
+    });
+
+    it('should successfully book an appointment and capture correct historical fee', async () => {
+      let aptId: string | undefined;
+      await sql.begin(async (tx) => {
+        await tx`SET LOCAL ROLE authenticated`;
+        await tx`SELECT set_config('request.jwt.claims', ${JSON.stringify({ sub: testPatientUserId })}, true)`;
+        
+        // Find next Wednesday
+        const apt = await tx`
+          SELECT (book_appointment(
+            ${testDoctorId},
+            NULL,
+            (date_trunc('week', now() + interval '1 week') + interval '2 days' + interval '10 hours')::timestamptz,
+            15,
+            'clinic',
+            'test reason'
+          )).id as apt_id
+        `;
+        aptId = apt[0]?.apt_id;
+      });
+      expect(aptId).toBeDefined();
+
+      const inserted = await sql`SELECT status, amount_charged FROM public.appointments WHERE id = ${aptId!}`;
+      expect(inserted[0]?.status).toBe('booked');
+      expect(Number(inserted[0]?.amount_charged)).toBe(500); // Historical fee captured
+    });
+
+    it('should reject overlap', async () => {
+      let error;
+      try {
+        await sql.begin(async (tx) => {
+          await tx`SET LOCAL ROLE authenticated`;
+          await tx`SELECT set_config('request.jwt.claims', ${JSON.stringify({ sub: testPatientUserId })}, true)`;
+          
+          await tx`
+            SELECT book_appointment(
+              ${testDoctorId},
+              NULL,
+              (date_trunc('week', now() + interval '1 week') + interval '2 days' + interval '10 hours')::timestamptz,
+              15,
+              'clinic',
+              'overlap reason'
+            )
+          `;
+        });
+      } catch (err: any) {
+        error = err;
+      }
+      expect(error).toBeDefined();
+      expect(error?.message).toMatch(/slot is no longer available/i);
+    });
+
+    it('should reject invalid duration', async () => {
+      let error;
+      try {
+        await sql.begin(async (tx) => {
+          await tx`SET LOCAL ROLE authenticated`;
+          await tx`SELECT set_config('request.jwt.claims', ${JSON.stringify({ sub: testPatientUserId })}, true)`;
+          
+          await tx`
+            SELECT book_appointment(
+              ${testDoctorId},
+              NULL,
+              (date_trunc('week', now() + interval '1 week') + interval '2 days' + interval '11 hours')::timestamptz,
+              200,
+              'clinic',
+              'too long'
+            )
+          `;
+        });
+      } catch (err: any) {
+        error = err;
+      }
+      expect(error).toBeDefined();
+      expect(error?.message).toMatch(/invalid duration/i);
+    });
+  });
+
+  describe('RPC: record_consultation', () => {
+    it('should reject consultation from unassigned doctor', async () => {
+      let error;
+      const apt = await sql`
+        INSERT INTO public.appointments (patient_id, doctor_id, scheduled_at, duration_min, type, status, amount_charged, token_number)
+        VALUES (${testPatientId}, ${testDoctorId}, NOW() - INTERVAL '1 day', 15, 'clinic', 'completed', 500, 101)
+        RETURNING id
+      `;
+
+      try {
+        await sql.begin(async (tx) => {
+          await tx`SET LOCAL ROLE authenticated`;
+          // Some other user
+          await tx`SELECT set_config('request.jwt.claims', ${JSON.stringify({ sub: testPatientUserId })}, true)`;
+          
+          await tx`
+            SELECT record_consultation(
+              ${apt[0]?.id}::uuid,
+              ${'Checkup'}::text,
+              ${'Fever'}::text,
+              ${'Rest'}::text,
+              ${null}::text,
+              ${null}::jsonb
+            )
+          `;
+        });
+      } catch (err: any) {
+        error = err;
+      }
+      expect(error).toBeDefined();
+      expect(error?.message).toMatch(/verified doctor required/i);
+    });
+
+    it('should rollback transaction if prescription items are invalid', async () => {
+      const apt = await sql`
+        INSERT INTO public.appointments (patient_id, doctor_id, scheduled_at, duration_min, type, status, amount_charged, token_number)
+        VALUES (${testPatientId}, ${testDoctorId}, NOW(), 15, 'clinic', 'in_progress', 500, 102)
+        RETURNING id
+      `;
+
+      let error;
+      try {
+        await sql.begin(async (tx) => {
+          await tx`SET LOCAL ROLE authenticated`;
+          await tx`SELECT set_config('request.jwt.claims', ${JSON.stringify({ sub: testDoctorUserId })}, true)`;
+          
+          const rxItems = [
+            { medicine_id: null, dosage: '1x', frequency: 'daily', duration_days: 'invalid_int', instructions: '' }
+          ];
+
+          await tx`
+            SELECT record_consultation(
+              ${apt[0]?.id}::uuid,
+              ${'Checkup'}::text,
+              ${'Fever'}::text,
+              ${'Rest'}::text,
+              ${'Prescription Notes'}::text,
+              ${sql.json(rxItems)}
+            )
+          `;
+        });
+      } catch (err: any) {
+        error = err;
+      }
+      expect(error).toBeDefined();
+
+      // Ensure no record or prescription was created
+      const recs = await sql`SELECT COUNT(*) as count FROM public.medical_records WHERE appointment_id = ${apt[0]?.id}`;
+      expect(Number(recs[0]?.count)).toBe(0);
+    });
+
+    it('should successfully record consultation and create prescription', async () => {
+      const med = await sql`
+        INSERT INTO public.medicines (name, form, strength, manufacturer)
+        VALUES ('TestMed', 'tablet', '500mg', 'TestCo')
+        RETURNING id
+      `;
+
+      const apt = await sql`
+        INSERT INTO public.appointments (patient_id, doctor_id, scheduled_at, duration_min, type, status, amount_charged, token_number)
+        VALUES (${testPatientId}, ${testDoctorId}, NOW(), 15, 'clinic', 'in_progress', 500, 103)
+        RETURNING id
+      `;
+
+      let recordId: string | undefined;
+      await sql.begin(async (tx) => {
+        await tx`SET LOCAL ROLE authenticated`;
+        await tx`SELECT set_config('request.jwt.claims', ${JSON.stringify({ sub: testDoctorUserId })}, true)`;
+        
+        const rxItems = [
+          { medicine_id: med[0]?.id, dosage: '1x', frequency: 'daily', duration_days: 5, instructions: 'After meals' }
+        ];
+
+        const result = await tx`
+          SELECT record_consultation(
+            ${apt[0]?.id}::uuid,
+            ${'Final Checkup'}::text,
+            ${'All good'}::text,
+            ${'Notes'}::text,
+            ${'Take meds'}::text,
+            ${sql.json(rxItems)}
+          )
+        `;
+        recordId = result[0]?.record_consultation;
+      });
+
+      expect(recordId).toBeDefined();
+
+      // Verify medical record
+      const rec = await sql`SELECT * FROM public.medical_records WHERE id = ${recordId!}`;
+      expect(rec[0]?.title).toBe('Final Checkup');
+
+      // Verify prescription
+      const rx = await sql`SELECT * FROM public.prescriptions WHERE appointment_id = ${apt[0]?.id}`;
+      expect(rx.length).toBe(1);
+
+      // Verify prescription items
+      const rxItem = await sql`SELECT * FROM public.prescription_items WHERE prescription_id = ${rx[0]?.id}`;
+      expect(rxItem.length).toBe(1);
+      expect(rxItem[0]?.duration_days).toBe(5);
+
+      // Verify appointment is completed
+      const updatedApt = await sql`SELECT status FROM public.appointments WHERE id = ${apt[0]?.id}`;
+      expect(updatedApt[0]?.status).toBe('completed');
+    });
+
+    it('should reject duplicate consultations for the same appointment', async () => {
+      const apt = await sql`
+        INSERT INTO public.appointments (patient_id, doctor_id, scheduled_at, duration_min, type, status, amount_charged, token_number)
+        VALUES (${testPatientId}, ${testDoctorId}, NOW(), 15, 'clinic', 'in_progress', 500, 104)
+        RETURNING id
+      `;
+
+      await sql.begin(async (tx) => {
+        await tx`SET LOCAL ROLE authenticated`;
+        await tx`SELECT set_config('request.jwt.claims', ${JSON.stringify({ sub: testDoctorUserId })}, true)`;
+        
+        await tx`
+          SELECT record_consultation(
+            ${apt[0]?.id}::uuid,
+            ${'First Checkup'}::text,
+            ${'All good'}::text,
+            ${'Notes'}::text,
+            ${null}::text,
+            ${null}::jsonb
+          )
+        `;
+      });
+
+      let error;
+      try {
+        await sql.begin(async (tx) => {
+          await tx`SET LOCAL ROLE authenticated`;
+          await tx`SELECT set_config('request.jwt.claims', ${JSON.stringify({ sub: testDoctorUserId })}, true)`;
+          
+          await tx`
+            SELECT record_consultation(
+              ${apt[0]?.id}::uuid,
+              ${'Second Checkup'}::text,
+              ${'All good'}::text,
+              ${'Notes'}::text,
+              ${null}::text,
+              ${null}::jsonb
+            )
+          `;
+        });
+      } catch (err: any) {
+        error = err;
+      }
+      expect(error).toBeDefined();
+      expect(error?.message).toMatch(/already exists/i);
     });
   });
 });

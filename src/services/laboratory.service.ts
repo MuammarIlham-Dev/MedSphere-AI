@@ -12,6 +12,7 @@ export interface LabWorklistItem {
   report_status: string | null;
   report_code: string | null;
   report_file_id: string | null;
+  report_authored_by: string | null;
 }
 
 export interface LabWorklistOrder {
@@ -50,6 +51,7 @@ interface LabWorklistRow {
   report_status: string | null;
   report_code: string | null;
   report_file_id: string | null;
+  report_authored_by: string | null;
 }
 
 const fileExt = (mime: string) => mime === 'application/pdf' ? 'pdf' : mime === 'image/png' ? 'png' : mime === 'image/jpeg' ? 'jpg' : null;
@@ -80,6 +82,14 @@ const removeReportDocument = async (fileId:string,path:string) => {
 };
 
 export const laboratoryService = {
+  workspace: async () => unwrap<{ laboratory_id: string; laboratory_name: string; laboratory_city: string | null; staff_role: string }[]>(supabase.rpc('get_laboratory_workspace')).then((rows) => rows[0] ?? null),
+
+  members: async (labId: string) => unwrap<Array<{ member_id: string; profile_id: string; full_name: string; digital_health_id: string; staff_role: string; active: boolean; created_at: string }>>(supabase.rpc('get_laboratory_members', { p_laboratory_id: labId })),
+
+  addMember: (labId: string, digitalHealthId: string, staffRole: string) => unwrap(supabase.rpc('add_laboratory_member_by_dhi', { p_laboratory_id: labId, p_digital_health_id: digitalHealthId, p_staff_role: staffRole })),
+
+  removeMember: (memberId: string) => unwrap(supabase.rpc('remove_laboratory_member', { p_member_id: memberId })),
+
   worklist: async (labId: string): Promise<LabWorklistOrder[]> => {
     const rows = await unwrap<LabWorklistRow[]>(
       supabase.rpc('get_laboratory_worklist', { p_lab_id: labId }),
@@ -98,6 +108,7 @@ export const laboratoryService = {
         report_status: row.report_status,
         report_code: row.report_code,
         report_file_id: row.report_file_id,
+        report_authored_by: row.report_authored_by,
       };
       const existing = grouped.get(row.order_id);
       if (existing) {
@@ -129,26 +140,19 @@ export const laboratoryService = {
     unwrap(supabase.rpc('advance_lab_sample', { p_item_id: itemId })),
 
   async createReport(input: { orderId: string; testId: string; result: Record<string, unknown>; file?: File | null }) {
-    const report = await unwrap<{ id: string }>(supabase.rpc('create_lab_report', {
-      p_order_id: input.orderId,
-      p_test_id: input.testId,
-      p_result_json: input.result,
-      p_file_id: null,
-    }));
-    if (!input.file) return report;
-
     let uploaded: { fileId: string; path: string } | null = null;
     try {
-      uploaded = await uploadReportDocument(input.file);
-      return await unwrap(supabase.rpc('attach_lab_report_document', {
-        p_report_id: report.id,
-        p_file_id: uploaded.fileId,
-      }));
+      if (input.file) uploaded = await uploadReportDocument(input.file);
+      return await unwrap(
+        supabase.rpc('create_lab_report', {
+          p_order_id: input.orderId,
+          p_test_id: input.testId,
+          p_result_json: input.result,
+          p_file_id: uploaded?.fileId ?? null,
+        }),
+      );
     } catch (error) {
-      if (uploaded) {
-        const check = await supabase.from('lab_reports').select('file_id').eq('id', report.id).maybeSingle();
-        if (check.data?.file_id === null) await removeReportDocument(uploaded.fileId, uploaded.path);
-      }
+      if (uploaded) await removeReportDocument(uploaded.fileId, uploaded.path);
       throw error;
     }
   },

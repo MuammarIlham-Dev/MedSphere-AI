@@ -20,11 +20,13 @@ import {
   useDeliverLabReport,
   useLabOrders,
   useVerifyLabReport,
+  useLaboratoryWorkspace,
+  useLaboratoryMembers,
+  useAddLaboratoryMember,
+  useRemoveLaboratoryMember,
 } from '@/hooks/queries/useLaboratoryQueries';
 import { formatDateTime } from '@/lib/utils';
 import { laboratoryService } from '@/services/laboratory.service';
-import { supabase } from '@/lib/supabase';
-import { unwrap } from '@/lib/api';
 
 const nextSampleStatus: Record<string, string> = {
   ordered: 'collected',
@@ -51,20 +53,18 @@ const orderTone = (status: string) => {
 export default function LabDashboard() {
   const profile = useAuthStore((s) => s.profile);
   const toast = useUiStore((s) => s.toast);
+  const [staffDhi, setStaffDhi] = useState('');
+  const [staffRole, setStaffRole] = useState('technologist');
   const [reportingItem, setReportingItem] = useState<string | null>(null);
   const [reportJson, setReportJson] = useState('{\n  "result": ""\n}');
   const [reportFile, setReportFile] = useState<File | null>(null);
 
-  const { data: laboratory } = useQuery({
-    queryKey: ['owned-laboratory', profile?.id],
-    queryFn: () =>
-      unwrap<{ id: string; name: string }>(
-        supabase.from('laboratories').select('id, name').eq('owner_id', profile?.id ?? '').single(),
-      ),
-    enabled: !!profile,
-  });
-
+  const { data: workspace } = useLaboratoryWorkspace();
+  const laboratory = workspace ? { id: workspace.laboratory_id, name: workspace.laboratory_name } : null;
   const { data: orders, isLoading } = useLabOrders(laboratory?.id);
+  const { data: members } = useLaboratoryMembers(laboratory?.id, workspace?.staff_role === 'manager');
+  const addMember = useAddLaboratoryMember();
+  const removeMember = useRemoveLaboratoryMember();
   const accept = useAcceptLabOrder();
   const advance = useAdvanceSampleStatus();
   const createReport = useCreateLabReport();
@@ -92,6 +92,12 @@ export default function LabDashboard() {
       popup?.close();
       toast('error', error instanceof Error ? error.message : 'Could not open laboratory document');
     }
+  };
+
+  const submitStaff = () => {
+    if (!laboratory || workspace?.staff_role !== 'manager' || !staffDhi.trim()) return;
+    addMember.mutate({ labId: laboratory.id, digitalHealthId: staffDhi.trim(), staffRole });
+    setStaffDhi('');
   };
 
   const submitReport = (orderId: string, testId: string) => {
@@ -127,6 +133,35 @@ export default function LabDashboard() {
         <KpiCard label="Samples analyzed" value={stats.analyzed} icon={<IoCheckmarkCircleOutline className="h-5 w-5 text-success-500" />} />
         <KpiCard label="Reports ready" value={stats.reportsReady} icon={<IoDocumentTextOutline className="h-5 w-5 text-brand-500" />} />
       </div>
+
+      {workspace?.staff_role === 'manager' && (
+        <Card className="mb-6">
+          <CardHeader title="Laboratory team & quality control" subtitle="Add laboratory accounts as technologists, reviewers, or managers. A reviewer cannot verify or publish a report they authored." />
+          <div className="p-5">
+            <div className="grid gap-3 md:grid-cols-[1fr_180px_auto]">
+              <input value={staffDhi} onChange={(e) => setStaffDhi(e.target.value)} placeholder="Staff Digital Health ID" className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-surface-dark-muted" />
+              <select value={staffRole} onChange={(e) => setStaffRole(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-surface-dark-muted">
+                <option value="technologist">Technologist</option>
+                <option value="reviewer">Reviewer</option>
+                <option value="manager">Manager</option>
+              </select>
+              <Button loading={addMember.isPending} disabled={!staffDhi.trim()} onClick={submitStaff}>Add staff</Button>
+            </div>
+            <div className="mt-4 space-y-2">
+              {(members ?? []).map((member) => (
+                <div key={member.member_id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-3 dark:border-white/10">
+                  <div>
+                    <p className="text-sm font-medium">{member.full_name} <span className="text-xs text-slate-400">· {member.digital_health_id}</span></p>
+                    <p className="text-xs capitalize text-slate-500">{member.staff_role} · {member.active ? 'Active' : 'Inactive'}</p>
+                  </div>
+                  {member.active && <Button size="sm" variant="danger" loading={removeMember.isPending} onClick={() => removeMember.mutate({ memberId: member.member_id, labId: laboratory.id })}>Remove</Button>}
+                </div>
+              ))}
+              {!members?.length && <p className="text-sm text-slate-400">No additional laboratory staff are assigned yet.</p>}
+            </div>
+          </div>
+        </Card>
+      )}
 
       <Card>
         <CardHeader
@@ -206,8 +241,13 @@ export default function LabDashboard() {
                           </Button>
                         )}
                         {item.report_id && item.report_status === 'completed' && (
-                          <Button size="sm" loading={verify.isPending} onClick={() => verify.mutate({ reportId: item.report_id! })}>
-                            Verify
+                          <Button
+                            size="sm"
+                            loading={verify.isPending}
+                            disabled={!!item.report_authored_by && item.report_authored_by === profile?.id}
+                            onClick={() => verify.mutate({ reportId: item.report_id! })}
+                          >
+                            {item.report_authored_by === profile?.id ? 'Awaiting independent reviewer' : 'Verify'}
                           </Button>
                         )}
                         {item.report_id && item.report_status === 'verified' && (

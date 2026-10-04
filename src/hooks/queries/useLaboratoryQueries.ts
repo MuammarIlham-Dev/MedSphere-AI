@@ -8,6 +8,24 @@ const invalidate = (qc: ReturnType<typeof useQueryClient>) => {
   void qc.invalidateQueries({ queryKey: ['hospital-lab-orders'] });
 };
 
+export function useLaboratoryWorkspace() {
+  return useQuery({ queryKey: ['laboratory-workspace'], queryFn: laboratoryService.workspace, refetchInterval: 30_000 });
+}
+
+export function useLaboratoryMembers(labId?: string, enabled = true) {
+  return useQuery({ queryKey: ['laboratory-members', labId], queryFn: () => laboratoryService.members(labId!), enabled: !!labId && enabled });
+}
+
+export function useAddLaboratoryMember() {
+  const qc = useQueryClient(); const toast = useUiStore((s) => s.toast);
+  return useMutation({ mutationFn: ({ labId, digitalHealthId, staffRole }: { labId: string; digitalHealthId: string; staffRole: string }) => laboratoryService.addMember(labId, digitalHealthId, staffRole), onSuccess: (_, v) => { void qc.invalidateQueries({ queryKey:['laboratory-members', v.labId] }); toast('success','Laboratory staff added'); }, onError: (e) => toast('error', e instanceof Error ? e.message : 'Unable to add laboratory staff') });
+}
+
+export function useRemoveLaboratoryMember() {
+  const qc = useQueryClient(); const toast = useUiStore((s) => s.toast);
+  return useMutation({ mutationFn: ({ memberId, labId }: { memberId: string; labId: string }) => laboratoryService.removeMember(memberId), onSuccess: (_, v) => { void qc.invalidateQueries({ queryKey:['laboratory-members', v.labId] }); toast('success','Laboratory staff access removed'); }, onError: (e) => toast('error', e instanceof Error ? e.message : 'Unable to remove laboratory staff') });
+}
+
 export function useLabOrders(labId?: string) {
   return useQuery({
     queryKey: ['lab-orders', labId],

@@ -46,9 +46,11 @@ export const organService = {
 
   /** Human review decision — the engine never auto-accepts. */
   review: (matchId: string, approve: boolean, notes: string) =>
-    unwrap(supabase.from('organ_matches')
-      .update({ status: approve ? 'accepted' : 'rejected', notes, reviewed_at: new Date().toISOString() })
-      .eq('id', matchId).select().single()),
+    unwrap(supabase.rpc('review_organ_match', {
+      p_match_id: matchId,
+      p_approve: approve,
+      p_notes: notes,
+    })),
 
   stats: async (): Promise<OrganStats> => {
     const [donors, waiting, matches] = await Promise.all([

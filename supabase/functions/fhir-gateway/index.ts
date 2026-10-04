@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
     // Local Sync: Map FHIR Observation to our internal medical_records or stats
     if (payload.resourceType === 'Observation') {
       const observation = payload;
-      let recordType = 'vitals';
+      const recordType = 'vitals';
       let description = 'Wearable vital sign recorded';
       
       if (observation.code?.coding?.[0]?.display) {

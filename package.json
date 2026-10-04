@@ -15,7 +15,8 @@
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "db:types": "supabase gen types typescript --local > src/types/database.types.ts"
+    "db:types": "supabase gen types typescript --local > src/types/database.types.ts",
+    "deploy": "npm run build && wrangler pages deploy dist"
   },
   "dependencies": {
     "@daily-co/daily-js": "^0.93.0",
@@ -61,6 +62,7 @@
     "typescript-eslint": "^8.18.1",
     "vite": "^6.0.5",
     "vite-plugin-pwa": "^0.21.1",
-    "vitest": "^2.1.8"
+    "vitest": "^2.1.8",
+    "wrangler": "^4.147.0"
   }
 }

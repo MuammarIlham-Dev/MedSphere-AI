@@ -55,7 +55,7 @@ RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $
+AS $$
 BEGIN
   IF NEW.status IN ('completed', 'cancelled', 'no_show') THEN
     UPDATE public.telemedicine_sessions
@@ -70,7 +70,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$;
+$$;
 
 DROP TRIGGER IF EXISTS tr_sync_telemedicine_with_appointment ON public.appointments;
 CREATE TRIGGER tr_sync_telemedicine_with_appointment

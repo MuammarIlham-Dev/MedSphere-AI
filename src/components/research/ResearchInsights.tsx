@@ -85,7 +85,7 @@ export function ResearchAiInsights({ cohortData }: { cohortData: CohortStat[] | 
           <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50/50 p-4 text-center dark:border-amber-800 dark:bg-amber-950/30">
             <IoSparklesOutline className="mx-auto h-8 w-8 text-amber-400" />
             <p className="mt-2 text-sm font-medium text-amber-700 dark:text-amber-300">Click "Generate insights" to analyze your cohort data with AI</p>
-            <p className="mt-1 text-xs text-amber-500">All analysis is performed on aggregated, anonymized data only</p>
+            <p className="mt-1 text-xs text-amber-500">Only the displayed aggregate rows are sent for research insight generation.</p>
           </div>
         )}
         {insights.map((insight, i) => (

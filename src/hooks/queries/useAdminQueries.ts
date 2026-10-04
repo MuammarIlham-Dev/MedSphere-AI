@@ -2,6 +2,24 @@ import { useQuery } from '@tanstack/react-query';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { adminService } from '@/services/admin.service';
 import { useUiStore } from '@/stores/uiStore';
+export function usePendingRoleRequests() {
+  return useQuery({ queryKey: ['pending-role-requests'], queryFn: adminService.pendingRoleRequests });
+}
+
+export function useResolveRoleRequest() {
+  const qc = useQueryClient();
+  const toast = useUiStore((s) => s.toast);
+  return useMutation({
+    mutationFn: ({ profileId, approve }: { profileId: string; approve: boolean }) =>
+      adminService.resolveRoleRequest(profileId, approve),
+    onSuccess: (_data, variables) => {
+      toast('success', variables.approve ? 'Professional role provisioned' : 'Role request rejected');
+      void qc.invalidateQueries({ queryKey: ['pending-role-requests'] });
+    },
+    onError: (e) => toast('error', e instanceof Error ? e.message : 'Role request update failed'),
+  });
+}
+
 export function usePendingDoctors() {
   return useQuery({ queryKey: ['pending-doctors'], queryFn: adminService.pendingDoctors });
 }

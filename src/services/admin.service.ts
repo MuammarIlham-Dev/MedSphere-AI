@@ -9,6 +9,22 @@ const count = async (table: string, build?: (q: any) => any) => {
 };
 
 export const adminService = {
+  pendingRoleRequests: () =>
+    unwrap<Array<{ id: string; full_name: string; phone: string | null; requested_role: string; created_at: string }>>(
+      supabase.from('profiles')
+        .select('id,full_name,phone,requested_role,created_at')
+        .eq('role', 'citizen')
+        .not('requested_role', 'is', null)
+        .order('created_at', { ascending: true })
+        .limit(100),
+    ),
+
+  resolveRoleRequest: (profileId: string, approve: boolean) =>
+    unwrap(supabase.rpc('resolve_requested_role', {
+      p_profile_id: profileId,
+      p_approve: approve,
+    })),
+
   pendingDoctors: () =>
     unwrap<Doctor[]>(supabase.from('doctors').select('*').eq('verification', 'pending').order('id')),
 

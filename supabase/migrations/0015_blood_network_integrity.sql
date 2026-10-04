@@ -51,6 +51,7 @@ CREATE INDEX IF NOT EXISTS blood_donor_offers_donor_idx
 ALTER TABLE public.blood_donor_offers ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS blood_donors_self ON public.blood_donors;
+DROP POLICY IF EXISTS blood_donors_read ON public.blood_donors;
 
 CREATE POLICY blood_donors_read
 ON public.blood_donors FOR SELECT USING (

@@ -5,7 +5,7 @@ import { KpiCard, Skeleton, EmptyState, PageHeader } from '@/components/ui/KpiCa
 import { PageTransition } from '@/components/transitions/PageTransition';
 import { formatDateTime } from '@/lib/utils';
 import { IoShieldCheckmarkOutline, IoDocumentTextOutline } from 'react-icons/io5';
-import { useAuditLog, usePendingDoctors, usePendingDoctorCredentials, useReviewDoctorCredential, useVerifyDoctor } from '@/hooks/queries/useAdminQueries';
+import { useAuditLog, usePendingDoctors, usePendingDoctorCredentials, useReviewDoctorCredential, useVerifyDoctor, usePendingRoleRequests, useResolveRoleRequest } from '@/hooks/queries/useAdminQueries';
 import { useUiStore } from '@/stores/uiStore';
 import { useRef } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -13,10 +13,12 @@ import { useReveal } from '@/lib/gsap';
 
 export default function AdminDashboard() {
   const { data: pending, isLoading } = usePendingDoctors();
+  const { data: roleRequests } = usePendingRoleRequests();
   const { data: pendingCredentials } = usePendingDoctorCredentials();
   const { data: audit } = useAuditLog();
   const verify = useVerifyDoctor();
   const reviewCredential = useReviewDoctorCredential();
+  const resolveRoleRequest = useResolveRoleRequest();
   const toast = useUiStore((s) => s.toast);
   const rootRef = useRef<HTMLDivElement>(null);
   useReveal(rootRef);
@@ -31,6 +33,30 @@ export default function AdminDashboard() {
       </div>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader title="Professional role requests" subtitle="Signup requests are non-authoritative until an administrator provisions the role" />
+          <ul className="divide-y divide-slate-100 dark:divide-white/5">
+            {(roleRequests ?? []).map((request) => (
+              <li key={request.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-medium">{request.full_name} · {request.requested_role.replace('_', ' ')}</p>
+                  <p className="text-xs text-slate-400">{request.phone ?? 'No phone'} · Requested {formatDateTime(request.created_at)}</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="success" loading={resolveRoleRequest.isPending}
+                    onClick={() => resolveRoleRequest.mutate({ profileId: request.id, approve: true })}>
+                    Provision
+                  </Button>
+                  <Button size="sm" variant="danger" loading={resolveRoleRequest.isPending}
+                    onClick={() => resolveRoleRequest.mutate({ profileId: request.id, approve: false })}>
+                    Reject
+                  </Button>
+                </div>
+              </li>
+            ))}
+            {(roleRequests ?? []).length === 0 && <li className="p-5"><EmptyState title="No pending role requests" /></li>}
+          </ul>
+        </Card>
         <Card>
           <CardHeader title="Credential evidence queue" subtitle="Review uploaded professional evidence before verification decisions" />
           <ul className="divide-y divide-slate-100 dark:divide-white/5">

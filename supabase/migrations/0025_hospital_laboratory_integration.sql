@@ -353,12 +353,16 @@ DECLARE
 BEGIN
   IF auth.uid() IS NULL THEN RAISE EXCEPTION 'authentication required'; END IF;
 
-  SELECT o.*, l.owner_id, l.verification
-    INTO order_row, lab_owner, lab_verification
+  SELECT o.*
+    INTO order_row
   FROM public.lab_orders o
-  JOIN public.laboratories l ON l.id = o.lab_id
   WHERE o.id = p_order_id
   FOR UPDATE;
+
+  SELECT l.owner_id, l.verification
+    INTO lab_owner, lab_verification
+  FROM public.laboratories l
+  WHERE l.id = order_row.lab_id;
 
   IF NOT FOUND THEN RAISE EXCEPTION 'laboratory order not found'; END IF;
   IF NOT public.is_admin() AND lab_owner <> auth.uid() THEN RAISE EXCEPTION 'laboratory access required'; END IF;
@@ -504,13 +508,22 @@ DECLARE
 BEGIN
   IF auth.uid() IS NULL THEN RAISE EXCEPTION 'authentication required'; END IF;
 
-  SELECT r.*, o.*, l.owner_id, l.verification
-    INTO report_row, order_row, lab_owner, lab_verification
+  SELECT r.*
+    INTO report_row
   FROM public.lab_reports r
-  JOIN public.lab_orders o ON o.id = r.order_id
-  JOIN public.laboratories l ON l.id = o.lab_id
   WHERE r.id = p_report_id
   FOR UPDATE;
+
+  SELECT o.*
+    INTO order_row
+  FROM public.lab_orders o
+  WHERE o.id = report_row.order_id
+  FOR UPDATE;
+
+  SELECT l.owner_id, l.verification
+    INTO lab_owner, lab_verification
+  FROM public.laboratories l
+  WHERE l.id = order_row.lab_id;
 
   IF NOT FOUND THEN RAISE EXCEPTION 'laboratory report not found'; END IF;
   IF NOT public.is_admin() AND lab_owner <> auth.uid() THEN RAISE EXCEPTION 'laboratory access required'; END IF;

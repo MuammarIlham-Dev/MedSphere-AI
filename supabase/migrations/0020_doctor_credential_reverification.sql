@@ -130,7 +130,7 @@ LANGUAGE sql
 STABLE
 SECURITY DEFINER
 SET search_path = public
-AS $
+AS $$
   SELECT EXISTS (
     SELECT 1
     FROM public.doctors d
@@ -148,7 +148,7 @@ AS $
         )
       )
   );
-$;
+$$;
 
 CREATE OR REPLACE FUNCTION public.submit_doctor_credential(
   p_credential_type public.doctor_credential_type,

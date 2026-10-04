@@ -54,4 +54,20 @@ describe('organ.service', () => {
       p_donor_id: 'donor-123',
     });
   });
+  it('review routes match decisions through the server-authorized RPC', async () => {
+    vi.mocked(supabase.rpc).mockResolvedValue({
+      data: { id: 'match-1', status: 'accepted' },
+      error: null,
+    } as any);
+
+    await organService.review('match-1', true, 'Clinical review completed');
+
+    expect(supabase.rpc).toHaveBeenCalledWith('review_organ_match', {
+      p_match_id: 'match-1',
+      p_approve: true,
+      p_notes: 'Clinical review completed',
+    });
+    expect(supabase.from).not.toHaveBeenCalledWith('organ_matches');
+  });
+
 });

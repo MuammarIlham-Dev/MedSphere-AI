@@ -25,7 +25,8 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    if (!supabaseUrl || !anonKey || !serviceRoleKey) return json({ error: "Telemedicine service is not configured" }, 500);
+    const dailyApiKey = Deno.env.get("DAILY_API_KEY") ?? "";
+    if (!supabaseUrl || !anonKey || !serviceRoleKey || !dailyApiKey) return json({ error: "Telemedicine service is not configured" }, 500);
 
     const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
@@ -57,7 +58,7 @@ Deno.serve(async (req) => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${Deno.env.get("DAILY_API_KEY") ?? ""}`,
+          Authorization: `Bearer ${dailyApiKey}`,
         },
         body: JSON.stringify({
           name: roomName,

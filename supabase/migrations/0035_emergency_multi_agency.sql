@@ -113,25 +113,25 @@ drop policy if exists emergency_agency_dispatches_write on public.emergency_agen
 
 select public.apply_updated_at('public.emergency_agencies');
 
--- Prevent self-service role elevation to an emergency responder.
+-- Prevent self-service role elevation during the migration window.
+-- Public signup is citizen-only; privileged role onboarding is administrator-controlled.
 create or replace function public.handle_new_user() returns trigger
-language plpgsql security definer set search_path = public as $$
-declare r public.app_role;
+language plpgsql
+security definer
+set search_path = public
+as $$
 begin
-  begin r := coalesce((new.raw_user_meta_data->>'role')::public.app_role, 'citizen'); 
-  exception when others then r := 'citizen'; end;
-  if r in ('admin','super_admin','emergency_responder') then r := 'citizen'; end if;
-
   insert into public.profiles (id, role, full_name, phone, digital_health_id)
   values (
     new.id,
-    r,
-    coalesce(new.raw_user_meta_data->>'full_name', split_part(new.email,'@',1)),
+    'citizen',
+    coalesce(new.raw_user_meta_data->>'full_name', split_part(coalesce(new.email,''), '@', 1)),
     new.phone,
     'MSH-' || upper(substr(replace(gen_random_uuid()::text,'-',''),1,10))
   );
   return new;
-end $$;
+end;
+$$;
 
 -- Administrative provisioning functions are finalized in migration 0036.
 

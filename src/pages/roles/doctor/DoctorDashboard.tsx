@@ -13,7 +13,7 @@ import { useTodayQueue, useUpdateAppointmentStatus } from '@/hooks/queries/useAp
 import { useAuthStore } from '@/stores/authStore';
 import { useMyDoctor } from '@/hooks/queries/useDoctorQueries';
 import { useUiStore } from '@/stores/uiStore';
-import type { AppointmentStatus } from '@/types';
+import type { Appointment, AppointmentStatus } from '@/types';
 import { useRef } from 'react';
 import { useReveal } from '@/lib/gsap';
 import { ScheduleSettings } from '@/components/doctor/ScheduleSettings';
@@ -26,6 +26,13 @@ import { useState } from 'react';
 
 const NEXT: Partial<Record<AppointmentStatus, AppointmentStatus>> = {
   booked: 'confirmed', confirmed: 'checked_in', checked_in: 'in_progress', in_progress: 'completed',
+};
+
+const canJoinVideo = (appointment: Appointment) => {
+  if (appointment.type !== 'video' || !['confirmed', 'checked_in', 'in_progress'].includes(appointment.status)) return false;
+  const start = new Date(appointment.scheduled_at).getTime();
+  const now = Date.now();
+  return now >= start - 15 * 60_000 && now <= start + appointment.duration_min * 60_000 + 60 * 60_000;
 };
 
 export default function DoctorDashboard() {
@@ -120,7 +127,7 @@ export default function DoctorDashboard() {
                     {NEXT[a.status] === 'completed' ? 'Complete' : 'Advance'}
                   </Button>
                 )}
-                {a.type === 'video' && ['confirmed','checked_in','in_progress'].includes(a.status) && (
+                {canJoinVideo(a) && (
                   <Link to={`/app/consult/${a.id}`}><Button size="sm" variant="secondary">Join video</Button></Link>
                 )}
                 <Button size="sm" variant="secondary" onClick={() => setEhrPatient({ patientId: a.patient_id, patientName: a.patient_name || 'Unknown', appointmentId: a.id })}>

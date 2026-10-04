@@ -103,10 +103,6 @@ for select using (
         and (e.city is null or e.city = (select p.city from public.profiles p where p.id = auth.uid()))
     )
   )
-  or (
-    public.current_role() = 'government'
-    and exists (select 1 from public.emergencies e where e.id = emergency_id)
-  )
 );
 
 -- No direct client writes: all agency state changes go through RPCs.
@@ -142,8 +138,9 @@ create or replace function public.set_emergency_responder_role(
   p_profile_id uuid,
   p_enabled boolean
 ) returns public.profiles
-language plpgsql security definer set search_path = public as $$
-declare result public.profiles;
+language plpgsql security definer set search_path = public as $
+declare
+  result public.profiles;
 begin
   if not public.is_admin() then raise exception 'Administrator access required'; end if;
   if p_profile_id is null then raise exception 'Profile is required'; end if;
@@ -155,14 +152,32 @@ begin
     raise exception 'Administrative profiles cannot be converted to responders';
   end if;
 
-  update public.profiles
-  set role = case when p_enabled then 'emergency_responder'::public.app_role else 'citizen'::public.app_role end
-  where id=p_profile_id
-  returning * into result;
+  if not p_enabled then
+    update public.emergency_agency_members
+    set is_active=false
+    where user_id=p_profile_id and is_active=true;
+
+    update public.emergency_agency_dispatches
+    set status='cancelled',
+        responded_at=coalesce(responded_at,now()),
+        completed_at=coalesce(completed_at,now())
+    where assigned_member_id=p_profile_id
+      and status in ('acknowledged','en_route','on_scene');
+
+    update public.profiles
+    set role='citizen'::public.app_role
+    where id=p_profile_id
+    returning * into result;
+  else
+    update public.profiles
+    set role='emergency_responder'::public.app_role
+    where id=p_profile_id
+    returning * into result;
+  end if;
 
   if not found then raise exception 'Profile not found'; end if;
   return result;
-end $$;
+end $;
 
 revoke all on function public.set_emergency_responder_role(uuid,boolean) from public;
 grant execute on function public.set_emergency_responder_role(uuid,boolean) to authenticated;

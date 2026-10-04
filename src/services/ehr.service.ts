@@ -30,6 +30,18 @@ export interface EncounterContext {
   phone: string | null;
 }
 
+export interface LabReportHistoryItem {
+  report_id: string;
+  report_code: string;
+  version_no: number;
+  status: string;
+  is_current: boolean;
+  result_json: Record<string, unknown>;
+  file_id: string | null;
+  amendment_reason: string | null;
+  created_at: string;
+}
+
 export interface LabTestOption {
   id: string;
   code: string;
@@ -101,10 +113,11 @@ export const ehrService = {
     );
     if (orders.length === 0) return [];
 
-    const rows = await unwrap<Array<{ id: string; report_code: string; status: string; result_json: Record<string, unknown>; created_at: string; file_id: string | null; lab_tests?: { name: string } | { name: string }[] }>>(
+    const rows = await unwrap<Array<{ id: string; report_code: string; status: string; result_json: Record<string, unknown>; created_at: string; file_id: string | null; version_no: number; is_current: boolean; amendment_reason: string | null; lab_tests?: { name: string } | { name: string }[] }>>(
       supabase.from('lab_reports')
         .select('id, report_code, status, result_json, created_at, file_id, lab_tests(name)')
         .in('order_id', orders.map((order) => order.id))
+        .eq('is_current', true)
         .order('created_at', { ascending: false }),
     );
     return rows.map((row) => ({
@@ -115,6 +128,9 @@ export const ehrService = {
       created_at: row.created_at,
       test_name: Array.isArray(row.lab_tests) ? (row.lab_tests[0]?.name ?? null) : (row.lab_tests?.name ?? null),
       file_id: row.file_id,
+      version_no: row.version_no,
+      is_current: row.is_current,
+      amendment_reason: row.amendment_reason,
     }));
   },
 
@@ -125,6 +141,9 @@ export const ehrService = {
         if (!data?.signedUrl) throw new ApiError('SERVER', 'Could not open laboratory document');
         return data.signedUrl;
       }),
+
+  labReportHistory: (reportId: string): Promise<LabReportHistoryItem[]> =>
+    unwrap<LabReportHistoryItem[]>(supabase.rpc('get_lab_report_history', { p_report_id: reportId })),
 
   labReportAccessHistory: (reportId: string) =>
     unwrap<Array<{ accessed_at: string; accessor_name: string; accessor_role: string; access_type: string }>>(

@@ -6,6 +6,7 @@ const invalidate = (qc: ReturnType<typeof useQueryClient>) => {
   void qc.invalidateQueries({ queryKey: ['lab-orders'] });
   void qc.invalidateQueries({ queryKey: ['my-lab-reports'] });
   void qc.invalidateQueries({ queryKey: ['hospital-lab-orders'] });
+  void qc.invalidateQueries({ queryKey: ['lab-report-archive'] });
 };
 
 export function useLaboratoryWorkspace() {
@@ -24,6 +25,26 @@ export function useAddLaboratoryMember() {
 export function useRemoveLaboratoryMember() {
   const qc = useQueryClient(); const toast = useUiStore((s) => s.toast);
   return useMutation({ mutationFn: ({ memberId, labId }: { memberId: string; labId: string }) => laboratoryService.removeMember(memberId), onSuccess: (_, v) => { void qc.invalidateQueries({ queryKey:['laboratory-members', v.labId] }); toast('success','Laboratory staff access removed'); }, onError: (e) => toast('error', e instanceof Error ? e.message : 'Unable to remove laboratory staff') });
+}
+
+export function useLaboratoryReportArchive(labId?: string, enabled = true) {
+  return useQuery({
+    queryKey: ['lab-report-archive', labId],
+    queryFn: () => laboratoryService.reportArchive(labId!),
+    enabled: !!labId && enabled,
+    refetchInterval: 30_000,
+  });
+}
+
+export function useAmendLabReport() {
+  const qc = useQueryClient();
+  const toast = useUiStore((s) => s.toast);
+  return useMutation({
+    mutationFn: (input: { reportId: string; result: import('@/types/laboratory').StructuredLabResult; amendmentReason: string; file?: File | null }) =>
+      laboratoryService.amendReport(input),
+    onSuccess: () => { invalidate(qc); toast('success', 'Amendment created and queued for independent verification'); },
+    onError: (error: Error) => toast('error', error.message),
+  });
 }
 
 export function useLabOrders(labId?: string) {

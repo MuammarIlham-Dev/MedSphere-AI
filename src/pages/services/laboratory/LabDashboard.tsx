@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { PageTransition } from '@/components/transitions/PageTransition';
 import { PageHeader, KpiCard, EmptyState, Skeleton } from '@/components/ui/KpiCard';
 import { Card, CardHeader } from '@/components/ui/Card';
@@ -24,9 +23,14 @@ import {
   useLaboratoryMembers,
   useAddLaboratoryMember,
   useRemoveLaboratoryMember,
+  useLaboratoryReportArchive,
+  useAmendLabReport,
 } from '@/hooks/queries/useLaboratoryQueries';
 import { formatDateTime } from '@/lib/utils';
 import { laboratoryService } from '@/services/laboratory.service';
+import { LabResultEditor } from '@/components/laboratory/LabResultEditor';
+import { LabResultView } from '@/components/laboratory/LabResultView';
+import { createEmptyLabResult, parseStructuredLabResult, type StructuredLabResult } from '@/types/laboratory';
 
 const nextSampleStatus: Record<string, string> = {
   ordered: 'collected',
@@ -63,6 +67,9 @@ export default function LabDashboard() {
   const laboratory = workspace ? { id: workspace.laboratory_id, name: workspace.laboratory_name } : null;
   const { data: orders, isLoading } = useLabOrders(laboratory?.id);
   const { data: members } = useLaboratoryMembers(laboratory?.id, workspace?.staff_role === 'manager');
+  const canReview = workspace?.staff_role === 'reviewer' || workspace?.staff_role === 'manager';
+  const { data: reportArchive } = useLaboratoryReportArchive(laboratory?.id, canReview);
+  const amendReport = useAmendLabReport();
   const addMember = useAddLaboratoryMember();
   const removeMember = useRemoveLaboratoryMember();
   const accept = useAcceptLabOrder();
@@ -101,24 +108,39 @@ export default function LabDashboard() {
   };
 
   const submitReport = (orderId: string, testId: string) => {
-    try {
-      const parsed = JSON.parse(reportJson) as unknown;
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        throw new Error('Report result must be a JSON object');
-      }
-      createReport.mutate(
-        { orderId, testId, result: parsed as Record<string, unknown>, file: reportFile },
-        {
-          onSuccess: () => {
-            setReportingItem(null);
-            setReportJson('{\n  "result": ""\n}');
-            setReportFile(null);
-          },
+    createReport.mutate(
+      { orderId, testId, result: reportResult, file: reportFile },
+      {
+        onSuccess: () => {
+          setReportingItem(null);
+          setReportResult(createEmptyLabResult());
+          setReportFile(null);
         },
-      );
-    } catch (error) {
-      toast('error', error instanceof Error ? error.message : 'Invalid report JSON');
+      },
+    );
+  };
+
+  const submitAmendment = () => {
+    if (!amendmentReportId || amendmentReason.trim().length < 5) {
+      toast('error', 'Add a clear amendment reason (at least 5 characters)');
+      return;
     }
+    amendReport.mutate(
+      {
+        reportId: amendmentReportId,
+        result: amendmentResult,
+        amendmentReason: amendmentReason.trim(),
+        file: amendmentFile,
+      },
+      {
+        onSuccess: () => {
+          setAmendmentReportId(null);
+          setAmendmentReason('');
+          setAmendmentResult(createEmptyLabResult());
+          setAmendmentFile(null);
+        },
+      },
+    );
   };
 
   return (
@@ -159,6 +181,82 @@ export default function LabDashboard() {
               ))}
               {!members?.length && <p className="text-sm text-slate-400">No additional laboratory staff are assigned yet.</p>}
             </div>
+          </div>
+        </Card>
+      )}
+
+      {canReview && (
+        <Card className="mb-6">
+          <CardHeader
+            title="Report review & amendments"
+            subtitle="Delivered reports are immutable. Corrections create a new version that stays off the patient record until independently verified and published."
+          />
+          <div className="divide-y divide-slate-100 dark:divide-white/5">
+            {(reportArchive ?? []).map((report) => (
+              <div key={report.report_id} className="p-5">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-semibold">{report.test_name ?? 'Laboratory report'} · {report.patient_name}</h3>
+                      <Badge tone={report.status === 'delivered' ? 'success' : report.status === 'verified' ? 'info' : 'warning'}>
+                        v{report.version_no} · {report.status}
+                      </Badge>
+                      {report.is_current && <Badge tone="success">Current</Badge>}
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {report.report_code} · {formatDateTime(report.created_at)}
+                      {report.amendment_reason ? ' · Amendment: ' + report.amendment_reason : ''}
+                    </p>
+                    <div className="mt-3">
+                      <LabResultView result={parseStructuredLabResult(report.result_json)} />
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {report.file_id && <Button size="sm" variant="secondary" onClick={() => void openDocument(report.report_id)}>Open document</Button>}
+                    {report.status === 'completed' && (
+                      <Button size="sm" loading={verify.isPending} onClick={() => verify.mutate({ reportId: report.report_id })}>Verify</Button>
+                    )}
+                    {report.status === 'verified' && (
+                      <Button size="sm" variant="success" loading={deliver.isPending} onClick={() => deliver.mutate({ reportId: report.report_id })}>Publish</Button>
+                    )}
+                    {report.status === 'delivered' && report.is_current && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => {
+                          setAmendmentReportId(report.report_id);
+                          setAmendmentResult(parseStructuredLabResult(report.result_json));
+                          setAmendmentReason('');
+                          setAmendmentFile(null);
+                        }}
+                      >
+                        Create amendment
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                {amendmentReportId === report.report_id && (
+                  <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/50 p-4 dark:border-amber-900 dark:bg-amber-950/20">
+                    <p className="font-medium">Create corrected version</p>
+                    <p className="mt-1 text-xs text-muted-foreground">The original remains current until this version is independently verified and published.</p>
+                    <div className="mt-4"><LabResultEditor value={amendmentResult} onChange={setAmendmentResult} /></div>
+                    <label className="mt-4 block text-sm font-medium">
+                      Amendment reason
+                      <textarea value={amendmentReason} onChange={(e) => setAmendmentReason(e.target.value)} placeholder="Explain exactly what was corrected and why." className="mt-1 w-full rounded-xl border border-slate-200 bg-white p-3 text-sm dark:border-white/10 dark:bg-surface-dark-muted" />
+                    </label>
+                    <label className="mt-4 block text-sm font-medium">
+                      Replacement report document {report.file_id ? '(required because the current report has a document)' : '(optional)'}
+                      <input type="file" accept="application/pdf,image/jpeg,image/png" onChange={(e) => setAmendmentFile(e.target.files?.[0] ?? null)} className="mt-2 block w-full text-sm" />
+                    </label>
+                    <div className="mt-4 flex justify-end gap-2">
+                      <Button size="sm" variant="ghost" onClick={() => setAmendmentReportId(null)}>Cancel</Button>
+                      <Button size="sm" loading={amendReport.isPending} disabled={amendmentReason.trim().length < 5 || (report.file_id ? !amendmentFile : false)} onClick={submitAmendment}>Create corrected version</Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+            {!reportArchive?.length && <div className="p-8 text-sm text-slate-500">No current reports or pending amendments require review.</div>}
           </div>
         </Card>
       )}
@@ -233,7 +331,7 @@ export default function LabDashboard() {
                             variant="secondary"
                             onClick={() => {
                               setReportingItem(item.id);
-                              setReportJson('{\n  "result": ""\n}');
+                              setReportResult(createEmptyLabResult());
                               setReportFile(null);
                             }}
                           >
@@ -266,19 +364,7 @@ export default function LabDashboard() {
 
                     {reportingItem === item.id && (
                       <div className="mt-4 rounded-xl border border-brand-200 bg-white p-4 dark:border-brand-900 dark:bg-surface-dark-soft">
-                        <label className="text-sm font-medium text-foreground" htmlFor={'lab-report-' + item.id}>
-                          Structured result JSON
-                        </label>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Enter the laboratory result object only. The server stores it as protected clinical data.
-                        </p>
-                        <textarea
-                          id={'lab-report-' + item.id}
-                          value={reportJson}
-                          onChange={(e) => setReportJson(e.target.value)}
-                          className="mt-3 min-h-32 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 font-mono text-xs outline-none focus:border-brand-500 dark:border-white/10 dark:bg-surface-dark-muted"
-                          spellCheck={false}
-                        />
+                        <LabResultEditor value={reportResult} onChange={setReportResult} />
                         <label className="mt-3 block text-sm font-medium text-foreground" htmlFor={'lab-report-file-' + item.id}>
                           Attach report document <span className="font-normal text-muted-foreground">(optional · PDF/JPG/PNG · max 20 MB)</span>
                           <input

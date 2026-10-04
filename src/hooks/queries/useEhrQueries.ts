@@ -23,6 +23,14 @@ export function useMyLabReports() {
   });
 }
 
+export function useLabReportHistory(reportId?: string) {
+  return useQuery({
+    queryKey: ['lab-report-history', reportId],
+    queryFn: () => ehrService.labReportHistory(reportId!),
+    enabled: !!reportId,
+  });
+}
+
 export function useMyPrescriptions() {
   const profile = useAuthStore((s) => s.profile);
   return useQuery({

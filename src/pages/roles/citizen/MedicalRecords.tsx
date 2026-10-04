@@ -3,7 +3,9 @@ import { Badge } from '@/components/ui/Badge';
 import { PageHeader, Skeleton, EmptyState } from '@/components/ui/KpiCard';
 import { PageTransition } from '@/components/transitions/PageTransition';
 import { formatDateTime } from '@/lib/utils';
-import { useMyMedicalRecords, useMyLabReports, useMyPrescriptions } from '@/hooks/queries/useEhrQueries';
+import { useMyMedicalRecords, useMyLabReports, useMyPrescriptions, useLabReportHistory } from '@/hooks/queries/useEhrQueries';
+import { LabResultView } from '@/components/laboratory/LabResultView';
+import { parseStructuredLabResult } from '@/types/laboratory';
 import { MedicationReminderPanel } from '@/components/ehr/MedicationReminderPanel';
 import { PrescriptionSharingPanel } from '@/components/ehr/PrescriptionSharingPanel';
 import { useRef, useState } from 'react';
@@ -18,6 +20,8 @@ export function MedicalRecords() {
   const { data: labReports, isLoading: loadingLabs } = useMyLabReports();
   const { data: prescriptions, isLoading: loadingPrescriptions } = useMyPrescriptions();
   const [historyReportId, setHistoryReportId] = useState<string | null>(null);
+  const [versionHistoryReportId, setVersionHistoryReportId] = useState<string | null>(null);
+  const versionHistory = useLabReportHistory(versionHistoryReportId);
   const history = useQuery({
     queryKey: ['lab-report-access-history', historyReportId],
     queryFn: () => ehrService.labReportAccessHistory(historyReportId!),
@@ -108,14 +112,39 @@ export function MedicalRecords() {
                       <p className="font-medium text-sm">{report.test_name ?? report.report_code}</p>
                       <p className="text-xs text-slate-500">{formatDateTime(report.created_at)}</p>
                     </div>
-                    <Badge tone="success">{report.status}</Badge>
+                    <Badge tone={report.version_no > 1 ? 'warning' : 'success'}>
+                      {report.version_no > 1 ? 'Corrected v' + report.version_no : report.status}
+                    </Badge>
+                  </div>
+                  <div className="mt-3">
+                    <LabResultView result={parseStructuredLabResult(report.result_json)} />
+                    {report.amendment_reason && <p className="mt-2 text-xs text-amber-700 dark:text-amber-300"><span className="font-medium">Correction reason:</span> {report.amendment_reason}</p>}
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {report.file_id && <Button size="sm" onClick={() => void openReport(report.id)}>Open report document</Button>}
                     <Button size="sm" variant="ghost" onClick={() => setHistoryReportId(historyReportId === report.id ? null : report.id)}>
                       {historyReportId === report.id ? 'Hide access history' : 'Access history'}
                     </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setVersionHistoryReportId(versionHistoryReportId === report.id ? null : report.id)}>
+                      {versionHistoryReportId === report.id ? 'Hide version history' : 'Version history'}
+                    </Button>
                   </div>
+                  {versionHistoryReportId === report.id && (
+                    <div className="mt-3 space-y-2 rounded-lg bg-surface-muted p-3 dark:bg-surface-dark-muted">
+                      {versionHistory.isLoading && <p className="text-xs text-slate-500">Loading report versions…</p>}
+                      {!versionHistory.isLoading && versionHistory.data?.map((version) => (
+                        <div key={version.report_id} className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 py-2 text-xs last:border-0 dark:border-white/10">
+                          <div>
+                            <span className="font-medium">Version {version.version_no}</span>
+                            <span className="ml-2 capitalize text-slate-500">{version.status}</span>
+                            {version.is_current && <span className="ml-2 font-medium text-success-600">Current</span>}
+                            {version.amendment_reason && <p className="mt-1 text-slate-500">{version.amendment_reason}</p>}
+                          </div>
+                          <span className="text-slate-500">{formatDateTime(version.created_at)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   {historyReportId === report.id && (
                     <div className="mt-3 rounded-lg bg-surface-muted p-3 dark:bg-surface-dark-muted">
                       {history.isLoading && <p className="text-xs text-slate-500">Loading access history…</p>}

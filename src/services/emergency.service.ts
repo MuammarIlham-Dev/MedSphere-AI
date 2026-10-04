@@ -64,11 +64,7 @@ export const emergencyService = {
 
   listActive: () =>
     unwrap<Emergency[]>(
-      supabase
-        .from('emergencies')
-        .select('*')
-        .in('status', ['active', 'dispatched', 'on_scene', 'transporting', 'arrived'])
-        .order('created_at', { ascending: false }),
+      supabase.rpc('get_emergency_operator_feed'),
     ),
 
   getDispatchCandidates: (emergencyId: string) =>
@@ -77,6 +73,11 @@ export const emergencyService = {
         p_emergency_id: emergencyId,
         p_limit: 8,
       }),
+    ),
+
+  getCurrentDispatch: (emergencyId: string) =>
+    unwrap<EmergencyDispatch | null>(
+      supabase.rpc('get_emergency_operator_dispatch', { p_emergency_id: emergencyId }),
     ),
 
   dispatchNearest: async (emergencyId: string) => {

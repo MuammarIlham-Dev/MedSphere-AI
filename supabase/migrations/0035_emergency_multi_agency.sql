@@ -727,3 +727,37 @@ drop trigger if exists trg_sync_emergency_agencies on public.emergencies;
 create trigger trg_sync_emergency_agencies
 after update of status on public.emergencies
 for each row execute function public.sync_emergency_agency_dispatches_on_incident_status();
+
+
+create or replace function public.get_my_emergency_agency_response(
+  p_emergency_id uuid
+) returns table (
+  dispatch_id uuid,
+  agency_name text,
+  agency_type public.emergency_agency_type,
+  status public.emergency_agency_dispatch_status,
+  requested_at timestamptz,
+  responded_at timestamptz
+)
+language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then raise exception 'Authentication required'; end if;
+
+  if not exists (
+    select 1 from public.emergencies e
+    where e.id=p_emergency_id and e.reporter_id=auth.uid()
+  ) then
+    raise exception 'Emergency not found';
+  end if;
+
+  return query
+  select distinct on (a.agency_type)
+    d.id,a.name,a.agency_type,d.status,d.requested_at,d.responded_at
+  from public.emergency_agency_dispatches d
+  join public.emergency_agencies a on a.id=d.agency_id
+  where d.emergency_id=p_emergency_id
+  order by a.agency_type,d.requested_at desc;
+end $$;
+
+revoke all on function public.get_my_emergency_agency_response(uuid) from public;
+grant execute on function public.get_my_emergency_agency_response(uuid) to authenticated;

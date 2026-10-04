@@ -27,6 +27,8 @@ describe.skipIf(!integrationEnabled)('Doctor Tier Database Integration with Fixt
     await sql`DELETE FROM public.medical_records WHERE patient_id = ${testPatientUserId} OR doctor_id IN (SELECT id FROM public.doctors WHERE profile_id = ${testDoctorUserId})`;
     await sql`DELETE FROM public.appointment_feedback WHERE appointment_id IN (SELECT id FROM public.appointments WHERE patient_id = ${testPatientUserId} OR doctor_id IN (SELECT id FROM public.doctors WHERE profile_id = ${testDoctorUserId}))`;
     await sql`DELETE FROM public.appointments WHERE patient_id = ${testPatientUserId} OR doctor_id IN (SELECT id FROM public.doctors WHERE profile_id = ${testDoctorUserId})`;
+    await sql`DELETE FROM public.doctor_credentials WHERE doctor_id IN (SELECT id FROM public.doctors WHERE profile_id = ${testDoctorUserId})`;
+    await sql`DELETE FROM public.files WHERE owner_id = ${testDoctorUserId} AND path = 'doctor-test/credential.pdf'`;
     await sql`DELETE FROM public.doctors WHERE profile_id = ${testDoctorUserId}`;
     await sql`DELETE FROM public.hospitals WHERE license_no = 'HOSP-TEST-123'`;
     await sql`DELETE FROM public.profiles WHERE id IN (${testPatientUserId}, ${testDoctorUserId})`;
@@ -76,6 +78,16 @@ describe.skipIf(!integrationEnabled)('Doctor Tier Database Integration with Fixt
       RETURNING id
     `;
     testDoctorId = doctor[0]?.id;
+
+    await sql`
+      INSERT INTO public.files (owner_id, bucket, path, mime, size_bytes, purpose)
+      VALUES (${testDoctorUserId}, 'documents', 'doctor-test/credential.pdf', 'application/pdf', 128, 'doctor_credential')
+    `;
+    const credentialFile = await sql`SELECT id FROM public.files WHERE owner_id = ${testDoctorUserId} AND path = 'doctor-test/credential.pdf'`;
+    await sql`
+      INSERT INTO public.doctor_credentials (doctor_id, credential_type, file_id, document_number, status, reviewed_by, reviewed_at)
+      VALUES (${testDoctorId}, 'medical_license', ${credentialFile[0]?.id}, 'TEST-1234', 'accepted', ${testDoctorUserId}, NOW())
+    `;
 
     // 4. Create a valid schedule (Wednesday, 09:00 - 17:00, 15 min slots, Clinic)
     await sql`
@@ -313,6 +325,56 @@ describe.skipIf(!integrationEnabled)('Doctor Tier Database Integration with Fixt
       }
       expect(error).toBeDefined();
       expect(error?.message).toMatch(/invalid duration/i);
+    });
+  });
+
+  describe('Doctor verification boundaries', () => {
+    it('should reject direct doctor verification mutation', async () => {
+      let error;
+      try {
+        await sql`
+          UPDATE public.doctors
+             SET verification = 'verified'
+           WHERE id = ${testDoctorId}
+        `;
+      } catch (err: any) {
+        error = err;
+      }
+      expect(error).toBeDefined();
+      expect(error?.message).toMatch(/verification is managed/i);
+    });
+
+    it('should allow admin verification only through the controlled workflow', async () => {
+      await sql`UPDATE public.profiles SET role = 'admin' WHERE id = ${testDoctorUserId}`;
+      await sql.begin(async (tx) => {
+        await tx`SET LOCAL ROLE authenticated`;
+        await tx`SELECT set_config('request.jwt.claims', ${JSON.stringify({ sub: testDoctorUserId, role: 'authenticated', aud: 'authenticated' })}, true)`;
+        await tx`
+          SELECT public.set_doctor_verification(
+            ${testDoctorId},
+            'pending'::public.verification_status,
+            'Reverification test'
+          )
+        `;
+      });
+      const pending = await sql`SELECT verification FROM public.doctors WHERE id = ${testDoctorId}`;
+      expect(pending[0]?.verification).toBe('pending');
+
+      await sql.begin(async (tx) => {
+        await tx`SET LOCAL ROLE authenticated`;
+        await tx`SELECT set_config('request.jwt.claims', ${JSON.stringify({ sub: testDoctorUserId, role: 'authenticated', aud: 'authenticated' })}, true)`;
+        await tx`
+          SELECT public.set_doctor_verification(
+            ${testDoctorId},
+            'verified'::public.verification_status,
+            'Evidence verified'
+          )
+        `;
+      });
+      const verified = await sql`SELECT verification, verification_due_at FROM public.doctors WHERE id = ${testDoctorId}`;
+      expect(verified[0]?.verification).toBe('verified');
+      expect(verified[0]?.verification_due_at).toBeDefined();
+      await sql`UPDATE public.profiles SET role = 'doctor' WHERE id = ${testDoctorUserId}`;
     });
   });
 

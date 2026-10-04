@@ -147,7 +147,7 @@ pages → components → hooks (TanStack Query) → services (typed API) → sup
 - **Stores** hold *client-only* state (theme, sidebar, toasts, auth session mirror). Server state lives in TanStack Query — never duplicated into Zustand.
 - **Authorization is defense-in-depth:** RLS in Postgres is the hard boundary; `RoleGate`/`ProtectedRoute` are UX guards only.
 
-**Auth flow:** Sign up/in (email+password w/ Turnstile, Google OAuth, or phone OTP) → DB trigger creates `profiles` row with role from metadata → if TOTP MFA enrolled, AAL2 challenge is required before entering the shell → role-based onboarding (doctors/hospitals enter `pending` verification, visible in Admin queue).
+**Auth flow:** Sign up/in (email+password w/ Turnstile, Google OAuth, or phone OTP) → DB trigger creates a citizen `profiles` row and retains any requested professional role only as non-authoritative onboarding metadata → if TOTP MFA enrolled, AAL2 challenge is required before entering the shell → role-based onboarding (doctors/hospitals enter `pending` verification, visible in Admin queue).
 
 **Realtime map (Ably channel conventions):**
 
@@ -246,7 +246,7 @@ jobs:
 4. Captcha: paste Turnstile **secret** into Supabase Auth → Bot protection.
 5. `supabase secrets set ABLY_API_KEY=...`.
 6. Deploy realtime functions: `supabase functions deploy ably-token`, `supabase functions deploy blood-ably-token`, `supabase functions deploy blood-ably-event`, `supabase functions deploy emergency-ably-token`, `supabase functions deploy emergency-ably-event`, and `supabase functions deploy emergency-escalation`.
-7. Apply migrations in order through the latest migration (currently `0035_emergency_multi_agency.sql`).
+7. Apply migrations in order through the latest migration (currently `0037_p1_authorization_research_privacy.sql`).
 8. Set `EMERGENCY_ESCALATION_SECRET` and schedule the `emergency-escalation` function from a server-side scheduler at a short interval.
 9. Provision verified emergency agencies and responder membership through the administrator-only RPCs.
 
@@ -266,8 +266,8 @@ jobs:
 
 ## 10. Security & Accessibility Checklists
 
-- [x] RLS on **every** table; policies least-privilege, tested
-- [x] MFA (TOTP), session + device management via Supabase Auth
+- [ ] RLS on **every** table; policies least-privilege and covered by database negative tests
+- [ ] MFA (TOTP), session + device management via Supabase Auth — configuration must be verified in the deployed Supabase project
 - [x] Turnstile on auth mutations; rate limits at Cloudflare edge
 - [x] Strict CSP in `_headers`; no `dangerouslySetInnerHTML`; Zod-validated inputs
 - [x] File uploads: mime + size + SHA-256 recorded; private buckets only
@@ -284,6 +284,6 @@ jobs:
 | **2 — Care delivery** | Video provider integration (Daily/Twilio), e-pharmacy fulfillment, lab sample tracking UI, calendar sync (CalDAV/Google) |
 | **3 — Intelligence** | AI symptom guidance (LLM via edge function w/ safety rails + confidence UI), timeline summarizer, demand forecasting for blood/beds |
 | **4 — National scale** | Wearable ingestion (FHIR R4 adapter), HL7/FHIR interoperability gateway, regional data residency, disaster-mode offline-first mesh sync |
-| **5 — Research** | Anonymized cohort explorer, differential-privacy query API, ethics-review workflow |
+| **5 — Research** | Ethics-reviewed, k-anonymous cohort explorer and aggregate research intelligence; differential privacy remains a future controlled capability |
 
 *Every AI output ships with: informational labeling, confidence indicator, disclaimer, and one-tap escalation to a professional.*

@@ -72,6 +72,9 @@ medsphere-ai/
 │   │   ├── organ/OrganDashboard.tsx
 │   │   ├── blood/BloodBankDashboard.tsx
 │   │   ├── emergency/EmergencySOS.tsx
+│   │   ├── emergency/EmergencyDashboard.tsx
+│   │   ├── emergency/AmbulanceDriverDashboard.tsx
+│   │   ├── emergency/EmergencyAgencyDashboard.tsx
 │   │   ├── government/GovDashboard.tsx
 │   │   └── admin/AdminDashboard.tsx
 │   └── test/                         # setup, unit + component tests
@@ -115,7 +118,7 @@ pnpm dev                        # http://localhost:5173
 | `ABLY_API_KEY` | **server (edge secret)** | Used by `ably-token` function only |
 | `SUPABASE_SERVICE_ROLE_KEY` | **server (edge secret)** | Auto-injected into edge functions |
 
-The service-role key **never** ships to the browser. All privileged logic lives in SQL `security definer` functions or edge functions.
+The service-role key **never** ships to the browser. All privileged logic lives in SQL `security definer` functions or edge functions. Emergency responder roles cannot self-register; an administrator must provision the role and agency membership.
 
 ## 5. Scripts
 
@@ -156,6 +159,7 @@ pages → components → hooks (TanStack Query) → services (typed API) → sup
 | `sos:operator:{city}` | Regional SOS dispatch events | authorized dispatch operators/government |
 | `sos:emergency:{id}` | Per-incident lifecycle updates | reporter + authorized responders |
 | `sos:ambulance:{id}` | Dispatch offers/lifecycle updates | assigned ambulance driver |
+| `sos:agency:{id}` | Fire/Police/Rescue/EMS agency dispatch | verified agency members |
 | `sos:*` / generic tracking | Legacy realtime surface | retained only for non-emergency modules; Emergency SOS uses the scoped channels above |
 
 Supabase remains authoritative for durable emergency state and auditability. Ably carries high-frequency ambulance GPS and low-latency SOS dispatch/lifecycle events; database polling remains the recovery path when realtime is unavailable. Emergency SOS mutations are server-authorized through Supabase RPCs and a trusted Ably event gateway.
@@ -240,7 +244,8 @@ jobs:
 3. Auth providers: enable Email (confirm email ON), Google (OAuth client), Phone (Twilio/MessageBird). Enable TOTP MFA.
 4. Captcha: paste Turnstile **secret** into Supabase Auth → Bot protection.
 5. `supabase secrets set ABLY_API_KEY=...` → `supabase functions deploy ably-token`.
-6. Storage buckets are created by migration `0004`; confirm policies.
+6. Apply migrations in order through the latest migration (currently `0035_emergency_multi_agency.sql`).
+7. Storage buckets are created by the base migrations; confirm policies.
 
 **Ably** — Create app → restrict API key; no client-side key is ever used (token auth only).
 

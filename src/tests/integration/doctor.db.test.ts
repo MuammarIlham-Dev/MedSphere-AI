@@ -26,6 +26,7 @@ describe.skipIf(!integrationEnabled)('Doctor Tier Database Integration with Fixt
     await sql`DELETE FROM public.prescriptions WHERE patient_id = ${testPatientUserId} OR doctor_id IN (SELECT id FROM public.doctors WHERE profile_id = ${testDoctorUserId})`;
     await sql`DELETE FROM public.medical_records WHERE patient_id = ${testPatientUserId} OR doctor_id IN (SELECT id FROM public.doctors WHERE profile_id = ${testDoctorUserId})`;
     await sql`DELETE FROM public.appointment_feedback WHERE appointment_id IN (SELECT id FROM public.appointments WHERE patient_id = ${testPatientUserId} OR doctor_id IN (SELECT id FROM public.doctors WHERE profile_id = ${testDoctorUserId}))`;
+    await sql`DELETE FROM public.telemedicine_sessions WHERE appointment_id IN (SELECT id FROM public.appointments WHERE patient_id = ${testPatientUserId} OR doctor_id IN (SELECT id FROM public.doctors WHERE profile_id = ${testDoctorUserId}))`;
     await sql`DELETE FROM public.appointments WHERE patient_id = ${testPatientUserId} OR doctor_id IN (SELECT id FROM public.doctors WHERE profile_id = ${testDoctorUserId})`;
     await sql`DELETE FROM public.doctor_credentials WHERE doctor_id IN (SELECT id FROM public.doctors WHERE profile_id = ${testDoctorUserId})`;
     await sql`DELETE FROM public.files WHERE owner_id = ${testDoctorUserId} AND path = 'doctor-test/credential.pdf'`;
@@ -326,6 +327,77 @@ describe.skipIf(!integrationEnabled)('Doctor Tier Database Integration with Fixt
       }
       expect(error).toBeDefined();
       expect(error?.message).toMatch(/invalid duration/i);
+    });
+  });
+
+  describe('Telemedicine session lifecycle', () => {
+    it('should enforce appointment participants and lifecycle transitions', async () => {
+      const apt = await sql`
+        INSERT INTO public.appointments (
+          patient_id, doctor_id, scheduled_at, duration_min, type, status, amount_charged, token_number
+        )
+        VALUES (
+          ${testPatientId}, ${testDoctorId}, NOW(), 30, 'video', 'confirmed', 500, 201
+        )
+        RETURNING id
+      `;
+
+      const patientContext = await sql.begin(async (tx) => {
+        await tx`SET LOCAL ROLE authenticated`;
+        await tx`SELECT set_config('request.jwt.claims', ${JSON.stringify({ sub: testPatientUserId, role: 'authenticated', aud: 'authenticated' })}, true)`;
+        return tx`SELECT * FROM public.request_telemedicine_join(${apt[0]?.id}::uuid)`;
+      });
+
+      expect(patientContext[0]?.participant_role).toBe('patient');
+      expect(patientContext[0]?.other_participant_name).toBe('Test Doctor');
+      expect(patientContext[0]?.session_status).toBe('waiting');
+
+      const sessionId = patientContext[0]?.session_id;
+
+      const patientJoined = await sql.begin(async (tx) => {
+        await tx`SET LOCAL ROLE authenticated`;
+        await tx`SELECT set_config('request.jwt.claims', ${JSON.stringify({ sub: testPatientUserId, role: 'authenticated', aud: 'authenticated' })}, true)`;
+        return tx`SELECT * FROM public.mark_telemedicine_joined(${sessionId}::uuid)`;
+      });
+      expect(patientJoined[0]?.patient_active).toBe(true);
+      expect(patientJoined[0]?.status).toBe('waiting');
+
+      const doctorJoined = await sql.begin(async (tx) => {
+        await tx`SET LOCAL ROLE authenticated`;
+        await tx`SELECT set_config('request.jwt.claims', ${JSON.stringify({ sub: testDoctorUserId, role: 'authenticated', aud: 'authenticated' })}, true)`;
+        return tx`SELECT * FROM public.mark_telemedicine_joined(${sessionId}::uuid)`;
+      });
+      expect(doctorJoined[0]?.doctor_active).toBe(true);
+      expect(doctorJoined[0]?.status).toBe('live');
+      expect(doctorJoined[0]?.started_at).toBeDefined();
+
+      const left = await sql.begin(async (tx) => {
+        await tx`SET LOCAL ROLE authenticated`;
+        await tx`SELECT set_config('request.jwt.claims', ${JSON.stringify({ sub: testPatientUserId, role: 'authenticated', aud: 'authenticated' })}, true)`;
+        return tx`SELECT * FROM public.leave_telemedicine_session(${sessionId}::uuid)`;
+      });
+      expect(left[0]?.patient_active).toBe(false);
+
+      const ended = await sql.begin(async (tx) => {
+        await tx`SET LOCAL ROLE authenticated`;
+        await tx`SELECT set_config('request.jwt.claims', ${JSON.stringify({ sub: testDoctorUserId, role: 'authenticated', aud: 'authenticated' })}, true)`;
+        return tx`SELECT * FROM public.end_telemedicine_session(${sessionId}::uuid)`;
+      });
+      expect(ended[0]?.status).toBe('ended');
+      expect(ended[0]?.ended_by).toBe(testDoctorUserId);
+
+      let error;
+      try {
+        await sql.begin(async (tx) => {
+          await tx`SET LOCAL ROLE authenticated`;
+          await tx`SELECT set_config('request.jwt.claims', ${JSON.stringify({ sub: testPatientUserId, role: 'authenticated', aud: 'authenticated' })}, true)`;
+          await tx`SELECT * FROM public.request_telemedicine_join(${apt[0]?.id}::uuid)`;
+        });
+      } catch (err: any) {
+        error = err;
+      }
+      expect(error).toBeDefined();
+      expect(error?.message).toMatch(/session has ended/i);
     });
   });
 

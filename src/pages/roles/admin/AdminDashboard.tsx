@@ -5,15 +5,17 @@ import { KpiCard, Skeleton, EmptyState, PageHeader } from '@/components/ui/KpiCa
 import { PageTransition } from '@/components/transitions/PageTransition';
 import { formatDateTime } from '@/lib/utils';
 import { IoShieldCheckmarkOutline, IoDocumentTextOutline } from 'react-icons/io5';
-import { useAuditLog, usePendingDoctors, useVerifyDoctor } from '@/hooks/queries/useAdminQueries';
+import { useAuditLog, usePendingDoctors, usePendingDoctorCredentials, useReviewDoctorCredential, useVerifyDoctor } from '@/hooks/queries/useAdminQueries';
 import { useUiStore } from '@/stores/uiStore';
 import { useRef } from 'react';
 import { useReveal } from '@/lib/gsap';
 
 export default function AdminDashboard() {
   const { data: pending, isLoading } = usePendingDoctors();
+  const { data: pendingCredentials } = usePendingDoctorCredentials();
   const { data: audit } = useAuditLog();
   const verify = useVerifyDoctor();
+  const reviewCredential = useReviewDoctorCredential();
   const toast = useUiStore((s) => s.toast);
   const rootRef = useRef<HTMLDivElement>(null);
   useReveal(rootRef);
@@ -28,6 +30,27 @@ export default function AdminDashboard() {
       </div>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader title="Credential evidence queue" subtitle="Review uploaded professional evidence before verification decisions" />
+          <ul className="divide-y divide-slate-100 dark:divide-white/5">
+            {(pendingCredentials ?? []).map((c: any) => (
+              <li key={c.id} className="space-y-3 px-5 py-4">
+                <div>
+                  <p className="text-sm font-medium">{c.doctors?.profiles?.full_name ?? 'Doctor'} · {c.credential_type.replace('_', ' ')}</p>
+                  <p className="text-xs text-slate-400">License {c.doctors?.license_no ?? '—'} · {c.document_number ? 'Document '+c.document_number+' · ' : ''}Submitted {formatDateTime(c.created_at)}</p>
+                  {c.expires_at && <p className="text-xs text-slate-400">Expires {c.expires_at}</p>}
+                  {c.file?.path && <p className="break-all text-xs text-slate-500">Private file: {c.file.path}</p>}
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="success" loading={reviewCredential.isPending} onClick={() => reviewCredential.mutate({ id: c.id, status: 'accepted' }, { onError: (e) => toast('error', e.message) })}>Accept evidence</Button>
+                  <Button size="sm" variant="danger" loading={reviewCredential.isPending} onClick={() => reviewCredential.mutate({ id: c.id, status: 'rejected', notes: 'Evidence was not accepted. Please submit clearer or corrected documentation.' }, { onError: (e) => toast('error', e.message) })}>Reject evidence</Button>
+                </div>
+              </li>
+            ))}
+            {(pendingCredentials ?? []).length === 0 && <li className="p-5"><EmptyState title="No credential reviews pending" /></li>}
+          </ul>
+        </Card>
+
         <Card>
           <CardHeader title="Doctor verification queue" subtitle="License review required before platform access" />
           <ul className="divide-y divide-slate-100 dark:divide-white/5">

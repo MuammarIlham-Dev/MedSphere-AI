@@ -41,6 +41,7 @@ const NAV: Partial<Record<Role, NavItem[]>> = {
   hospital: [
     { to: '/app/hospital', label: 'Overview', icon: <IoBusinessOutline /> },
     { to: '/app/hospital/beds', label: 'Bed Management', icon: <IoBedOutline /> },
+    { to: '/app/hospital/inpatient', label: 'Inpatient Operations', icon: <IoPeopleOutline /> },
     { to: '/app/organ', label: 'Organ Coordination', icon: <IoBodyOutline /> },
     { to: '/app/blood', label: 'Blood Bank', icon: <IoWaterOutline /> },
   ],

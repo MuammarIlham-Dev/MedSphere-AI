@@ -85,12 +85,3 @@ export type EmergencyRealtimeAction =
   | 'agency_dispatch_cancelled';
 
 
-export interface EmergencyAgencyDispatchView extends import('@/types/emergencyAgency').EmergencyAgencyDispatch {
-  agency_name: string;
-  agency_type: import('@/types/emergencyAgency').EmergencyAgencyType;
-  emergency_type: string;
-  emergency_status: import('@/types').EmergencyStatus;
-  emergency_lat: number;
-  emergency_lng: number;
-  emergency_address: string | null;
-}

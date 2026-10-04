@@ -57,6 +57,7 @@ export const doctorService = {
     const digest = await crypto.subtle.digest('SHA-256', await input.file.arrayBuffer());
     const sha256 = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
 
+    let fileId: string | null = null;
     try {
       const fileRow = await unwrap<{ id: string }>(supabase.from('files').insert({
         owner_id: user.id,
@@ -68,6 +69,7 @@ export const doctorService = {
         purpose: 'doctor_credential',
       }).select('id').single());
 
+      fileId = fileRow.id;
       return await unwrap<DoctorCredential>(supabase.rpc('submit_doctor_credential', {
         p_credential_type: input.credentialType,
         p_file_id: fileRow.id,
@@ -77,6 +79,7 @@ export const doctorService = {
       }));
     } catch (error) {
       await supabase.storage.from('documents').remove([path]);
+      if (fileId) await supabase.from('files').delete().eq('id', fileId);
       throw error;
     }
   },

@@ -74,9 +74,9 @@ Deno.serve(async (req) => {
     const emergency = emergencies?.[0];
     if (emergency?.id) {
       capability[`sos:emergency:${emergency.id}`] = ['subscribe'];
-      // The active-emergency session is the authorization boundary. The ambulance UUID is opaque,
-      // and this read capability disappears once the emergency is no longer active.
-      capability['track:ambulance:*'] = ['subscribe'];
+      if (emergency.assigned_ambulance_id) {
+        capability[`track:ambulance:${emergency.assigned_ambulance_id}`] = ['subscribe'];
+      }
     }
   }
 

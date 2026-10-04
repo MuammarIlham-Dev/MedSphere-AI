@@ -34,6 +34,8 @@ const NAV: Partial<Record<Role, NavItem[]>> = {
   ],
   doctor: [
     { to: '/app/doctor', label: 'Dashboard', icon: <IoGridOutline /> },
+    { to: '/app/doctor/patients', label: 'Patients', icon: <IoPeopleOutline /> },
+    { to: '/app/doctor/schedule', label: 'Schedule', icon: <IoCalendarOutline /> },
     { to: '/app/consult', label: 'Consultations', icon: <IoVideocamOutline /> },
   ],
   hospital: [

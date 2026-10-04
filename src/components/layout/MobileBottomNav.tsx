@@ -37,6 +37,7 @@ export function MobileBottomNav() {
       case 'doctor':
         return [
           { to: '/app/doctor', label: 'Dashboard', icon: <IoGridOutline className="h-5 w-5" /> },
+          { to: '/app/doctor/patients', label: 'Patients', icon: <IoPeopleOutline className="h-5 w-5" /> },
           { to: '/app/consult', label: 'Consults', icon: <IoVideocamOutline className="h-5 w-5" /> },
           { to: '/app/emergency', label: 'SOS', icon: <IoMedkitOutline className="h-6 w-6" />, isEmergency: true },
           { to: '/app/profile', label: 'Profile', icon: <IoPersonOutline className="h-5 w-5" /> },
@@ -73,6 +74,7 @@ export function MobileBottomNav() {
     }
     if (role === 'doctor') {
       return [
+        { to: '/app/doctor/schedule', label: 'Clinical Schedule', desc: 'Clinic and video availability', icon: <IoCalendarOutline className="h-5 w-5 text-brand-600" /> },
         { to: '/app/appointments', label: 'Appointment Schedules', desc: 'Patient booking roster', icon: <IoCalendarOutline className="h-5 w-5 text-brand-600" /> },
         { to: '/app/directory', label: 'Hospital Directory', desc: 'Regional hospital network', icon: <IoBusinessOutline className="h-5 w-5 text-blue-500" /> },
       ];

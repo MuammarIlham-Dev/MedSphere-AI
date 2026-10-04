@@ -533,11 +533,12 @@ RETURNS public.lab_reports
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $$
+AS $
 DECLARE
   report_row public.lab_reports;
   order_row public.lab_orders;
   file_row public.files;
+  lab_verification verification_status;
 BEGIN
   SELECT r INTO report_row FROM public.lab_reports r WHERE r.id = p_report_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'laboratory report not found'; END IF;

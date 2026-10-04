@@ -1,54 +1,69 @@
-import { useQuery, useMutation, useQueryClient } from'@tanstack/react-query';
-import { supabase } from'@/lib/supabase';
-import { unwrap } from'@/lib/api';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { laboratoryService } from '@/services/laboratory.service';
+import { useUiStore } from '@/stores/uiStore';
+
+const invalidate = (qc: ReturnType<typeof useQueryClient>) => {
+  void qc.invalidateQueries({ queryKey: ['lab-orders'] });
+  void qc.invalidateQueries({ queryKey: ['my-lab-reports'] });
+  void qc.invalidateQueries({ queryKey: ['hospital-lab-orders'] });
+};
 
 export function useLabOrders(labId?: string) {
- return useQuery({
- queryKey: ['lab-orders', labId],
- queryFn: async () => {
- const data = await unwrap<Array<{
-    id: string;
-    booked_at: string;
-    patient?: { full_name: string };
-    items?: Array<{ id: string; sample_status: string; test?: { name: string; code: string } }>;
-  }>>(
- supabase
- .from('lab_orders')
- .select(`
- *,
- patient:patient_id(full_name),
- items:lab_order_items(
- *,
- test:test_id(name, code)
- )
- `)
- .eq('lab_id', labId ?? '')
- .in('status', ['pending','in_progress'])
- .order('booked_at', { ascending: false })
- );
- return data;
- },
- enabled: !!labId,
- });
+  return useQuery({
+    queryKey: ['lab-orders', labId],
+    queryFn: () => laboratoryService.worklist(labId!),
+    enabled: !!labId,
+    refetchInterval: 20_000,
+  });
+}
+
+export function useAcceptLabOrder() {
+  const qc = useQueryClient();
+  const toast = useUiStore((s) => s.toast);
+  return useMutation({
+    mutationFn: ({ orderId }: { orderId: string }) => laboratoryService.acceptOrder(orderId),
+    onSuccess: () => { invalidate(qc); toast('success', 'Laboratory order accepted'); },
+    onError: (error: Error) => toast('error', error.message),
+  });
 }
 
 export function useAdvanceSampleStatus() {
- const qc = useQueryClient();
- return useMutation({
- mutationFn: async ({ itemId, currentStatus }: { itemId: string, currentStatus: string }) => {
- const statuses = ['ordered','collected','in_transit','received','processing','analyzed'];
- const nextIdx = statuses.indexOf(currentStatus) + 1;
- const nextStatus = nextIdx < statuses.length ? statuses[nextIdx] : statuses[statuses.length - 1];
- 
- return unwrap(
- supabase
- .from('lab_order_items')
- .update({ sample_status: nextStatus })
- .eq('id', itemId)
- );
- },
- onSuccess: () => {
- void qc.invalidateQueries({ queryKey: ['lab-orders'] });
- }
- });
+  const qc = useQueryClient();
+  const toast = useUiStore((s) => s.toast);
+  return useMutation({
+    mutationFn: ({ itemId }: { itemId: string }) => laboratoryService.advanceSample(itemId),
+    onSuccess: () => { invalidate(qc); toast('success', 'Sample pipeline advanced'); },
+    onError: (error: Error) => toast('error', error.message),
+  });
+}
+
+export function useCreateLabReport() {
+  const qc = useQueryClient();
+  const toast = useUiStore((s) => s.toast);
+  return useMutation({
+    mutationFn: (input: { orderId: string; testId: string; result: Record<string, unknown> }) =>
+      laboratoryService.createReport(input),
+    onSuccess: () => { invalidate(qc); toast('success', 'Laboratory report created'); },
+    onError: (error: Error) => toast('error', error.message),
+  });
+}
+
+export function useVerifyLabReport() {
+  const qc = useQueryClient();
+  const toast = useUiStore((s) => s.toast);
+  return useMutation({
+    mutationFn: ({ reportId }: { reportId: string }) => laboratoryService.verifyReport(reportId),
+    onSuccess: () => { invalidate(qc); toast('success', 'Laboratory report verified'); },
+    onError: (error: Error) => toast('error', error.message),
+  });
+}
+
+export function useDeliverLabReport() {
+  const qc = useQueryClient();
+  const toast = useUiStore((s) => s.toast);
+  return useMutation({
+    mutationFn: ({ reportId }: { reportId: string }) => laboratoryService.deliverReport(reportId),
+    onSuccess: () => { invalidate(qc); toast('success', 'Laboratory report delivered'); },
+    onError: (error: Error) => toast('error', error.message),
+  });
 }

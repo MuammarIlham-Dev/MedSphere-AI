@@ -4,7 +4,7 @@ import {
   IoGridOutline, IoCalendarOutline, IoBusinessOutline, IoDocumentTextOutline,
   IoMedkitOutline, IoEllipsisHorizontalOutline, IoCloseOutline, IoVideocamOutline,
   IoWaterOutline, IoBodyOutline, IoPersonOutline, IoLogOutOutline,
-  IoShieldCheckmarkOutline, IoStatsChartOutline, IoBeakerOutline, IoMedicalOutline,
+  IoShieldCheckmarkOutline, IoStatsChartOutline, IoBeakerOutline, IoMedicalOutline, IoPeopleOutline,
 } from 'react-icons/io5';
 import { useAuthStore } from '@/stores/authStore';
 import { cn, initials } from '@/lib/utils';
@@ -84,6 +84,7 @@ export function MobileBottomNav() {
         ...(role === 'hospital' ? [
           { to: '/app/hospital/queue', label: 'Clinical Queue', desc: 'Today’s hospital appointments', icon: <IoCalendarOutline className="h-5 w-5 text-brand-600" /> },
           { to: '/app/hospital/inpatient', label: 'Inpatient Operations', desc: 'Admissions, transfers & discharge', icon: <IoPeopleOutline className="h-5 w-5 text-indigo-500" /> },
+          { to: '/app/hospital/laboratory', label: 'Laboratory Coordination', desc: 'Diagnostic workflow & report status', icon: <IoBeakerOutline className="h-5 w-5 text-indigo-500" /> },
           { to: '/app/hospital/blood', label: 'Blood Requisition', desc: 'Request blood from verified banks', icon: <IoWaterOutline className="h-5 w-5 text-rose-500" /> },
         ] : []),
         { to: '/app/admin', label: 'Administrative Console', desc: 'User audits & compliance logs', icon: <IoShieldCheckmarkOutline className="h-5 w-5 text-brand-600" /> },

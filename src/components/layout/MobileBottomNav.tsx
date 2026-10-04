@@ -5,7 +5,7 @@ import {
   IoMedkitOutline, IoEllipsisHorizontalOutline, IoCloseOutline, IoVideocamOutline,
   IoWaterOutline, IoBodyOutline, IoPersonOutline, IoLogOutOutline,
   IoShieldCheckmarkOutline, IoStatsChartOutline, IoBeakerOutline, IoMedicalOutline, IoPeopleOutline,
-  IoCarOutline,
+  IoCarOutline, IoShieldOutline,
 } from 'react-icons/io5';
 import { useAuthStore } from '@/stores/authStore';
 import { cn, initials } from '@/lib/utils';
@@ -58,6 +58,11 @@ export function MobileBottomNav() {
       case 'ambulance_driver':
         return [
           { to: '/app/ambulance', label: 'Response', icon: <IoCarOutline className="h-5 w-5" /> },
+          { to: '/app/profile', label: 'Profile', icon: <IoPersonOutline className="h-5 w-5" /> },
+        ];
+      case 'emergency_responder':
+        return [
+          { to: '/app/agency-response', label: 'Response', icon: <IoShieldOutline className="h-5 w-5" /> },
           { to: '/app/profile', label: 'Profile', icon: <IoPersonOutline className="h-5 w-5" /> },
         ];
       default:

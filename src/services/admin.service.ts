@@ -14,7 +14,7 @@ export const adminService = {
 
   pendingDoctorCredentials: () =>
     unwrap<Array<any>>(supabase.from('doctor_credentials')
-      .select('*, doctors:doctor_id(id, specialty, license_no, profiles:profile_id(full_name))')
+      .select('*, file:file_id(bucket,path,mime,size_bytes), doctors:doctor_id(id, specialty, license_no, profiles:profile_id(full_name))')
       .eq('status', 'pending')
       .order('created_at', { ascending: true })
       .limit(100)),

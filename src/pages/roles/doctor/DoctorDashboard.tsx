@@ -21,6 +21,7 @@ import { DoctorProfileSettings } from '@/components/doctor/DoctorProfileSettings
 import { DoctorAnalytics } from '@/components/doctor/DoctorAnalytics';
 import { DoctorOnboarding } from './DoctorOnboarding';
 import { PatientEhrModal } from '@/components/ehr/PatientEhrModal';
+import { DoctorCredentials } from '@/components/doctor/DoctorCredentials';
 import { useState } from 'react';
 
 const NEXT: Partial<Record<AppointmentStatus, AppointmentStatus>> = {
@@ -62,8 +63,9 @@ export default function DoctorDashboard() {
         <div className="mx-auto max-w-2xl pt-8 pb-12">
           <PageHeader title="Application under review" subtitle="Your doctor application is currently being reviewed by our administrators." />
           <Card className="mt-6 p-6">
-            <EmptyState title="Verification Pending" hint="We will notify you once your application has been approved." />
+            <EmptyState title="Verification Pending" hint="Upload your professional evidence below so an administrator can complete the review." />
           </Card>
+          <DoctorCredentials doctor={doctor} />
         </div>
       </PageTransition>
     );
@@ -75,8 +77,9 @@ export default function DoctorDashboard() {
         <div className="mx-auto max-w-2xl pt-8 pb-12">
           <PageHeader title="Access restricted" subtitle={`Your account has been ${doctor.verification}.`} />
           <Card className="mt-6 p-6">
-            <EmptyState title="Access Restricted" hint="Please contact support for more information." />
+            <EmptyState title="Access Restricted" hint="Submit updated evidence and contact support for the next verification decision." />
           </Card>
+          <DoctorCredentials doctor={doctor} />
         </div>
       </PageTransition>
     );

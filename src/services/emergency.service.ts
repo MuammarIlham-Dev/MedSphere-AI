@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { unwrap, ApiError } from '@/lib/api';
-import { emergencyChannel, publishEmergencyLocation } from '@/lib/emergencyAbly';
+import { publishEmergencyLocation } from '@/lib/emergencyAbly';
 import { publishEmergencyRealtime } from './emergencyRealtime.service';
 import type { Emergency } from '@/types';
 import type {
@@ -12,6 +12,12 @@ import type {
 
 const safeRealtime = (action: Parameters<typeof publishEmergencyRealtime>[0], emergencyId: string) =>
   publishEmergencyRealtime(action, emergencyId).catch(() => undefined);
+
+const getMyAmbulance = async (): Promise<MyAmbulance | null> => {
+  const { data, error } = await supabase.rpc('get_my_ambulance');
+  if (error) throw error;
+  return (data?.[0] as MyAmbulance | undefined) ?? null;
+};
 
 export const emergencyService = {
   async triggerSOS(input: {
@@ -116,11 +122,7 @@ export const emergencyService = {
     return emergency;
   },
 
-  getMyAmbulance: () =>
-    unwrap<MyAmbulance | null>(supabase.rpc('get_my_ambulance').then((result: any) => {
-      if (result.error) return result;
-      return { ...result, data: result.data?.[0] ?? null };
-    })),
+  getMyAmbulance,
 
   getMyDispatches: () =>
     unwrap<AmbulanceDispatchMission[]>(
@@ -129,14 +131,5 @@ export const emergencyService = {
 
   publishAmbulanceLocation: async (ambulanceId: string, lat: number, lng: number) => {
     await publishEmergencyLocation(ambulanceId, lat, lng);
-  },
-
-  subscribeToEmergency: (emergencyId: string, callback: (data: any) => void) => {
-    const channel = emergencyChannel(`sos:emergency:${emergencyId}`);
-    const handler = (message: any) => callback(message.data);
-    void channel.subscribe('emergency:update', handler);
-    return () => {
-      void channel.unsubscribe('emergency:update', handler);
-    };
   },
 };

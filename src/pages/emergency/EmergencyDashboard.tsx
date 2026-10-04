@@ -70,7 +70,7 @@ export default function EmergencyDashboard() {
   const selected = emergencies?.find((e) => e.id === selectedId);
   const candidates = useEmergencyDispatchCandidates(selectedId);
   const currentDispatch = useEmergencyCurrentDispatch(selectedId);
-  const agencyDispatches = useEmergencyAgencyDispatches(selectedId);
+  const agencyDispatches = useEmergencyAgencyDispatches(selectedId, profile?.city);
   const dispatchNearest = useDispatchNearest();
   const dispatchAgencies = useDispatchRequiredEmergencyAgencies();
   const cancelDispatch = useCancelEmergencyDispatch();

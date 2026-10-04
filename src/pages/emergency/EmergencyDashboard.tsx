@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PageTransition } from '@/components/transitions/PageTransition';
 import { PageHeader, EmptyState, Skeleton, KpiCard } from '@/components/ui/KpiCard';
 import { Card, CardHeader } from '@/components/ui/Card';
@@ -16,6 +16,8 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { emergencyService } from '@/services/emergency.service';
 import { formatDateTime } from '@/lib/utils';
+import { emergencyChannel } from '@/lib/emergencyAbly';
+import { useAuthStore } from '@/stores/authStore';
 
 function LiveLocation({ ambulanceId }: { ambulanceId: string | null }) {
   const location = useAmbulanceTrack(ambulanceId ?? undefined);
@@ -38,12 +40,28 @@ function LiveLocation({ ambulanceId }: { ambulanceId: string | null }) {
 }
 
 export default function EmergencyDashboard() {
+  const profile = useAuthStore((s) => s.profile);
+  const qc = useQueryClient();
   const [selectedId, setSelectedId] = useState<string>();
   const { data: emergencies, isLoading } = useQuery({
     queryKey: ['active-emergencies'],
     queryFn: emergencyService.listActive,
     refetchInterval: 15_000,
   });
+
+  useEffect(() => {
+    if (!profile?.city) return;
+    const ch = emergencyChannel(`sos:operator:${profile.city}`);
+    const onUpdate = () => {
+      void qc.invalidateQueries({ queryKey: ['active-emergencies'] });
+      if (selectedId) {
+        void qc.invalidateQueries({ queryKey: ['emergency-current-dispatch', selectedId] });
+        void qc.invalidateQueries({ queryKey: ['emergency-dispatch-candidates', selectedId] });
+      }
+    };
+    void ch.subscribe('emergency:update', onUpdate);
+    return () => { void ch.unsubscribe('emergency:update', onUpdate); };
+  }, [profile?.city, qc, selectedId]);
   const selected = emergencies?.find((e) => e.id === selectedId);
   const candidates = useEmergencyDispatchCandidates(selectedId);
   const currentDispatch = useEmergencyCurrentDispatch(selectedId);
@@ -137,9 +155,11 @@ export default function EmergencyDashboard() {
                     <Badge tone={currentDispatch.data.status === 'accepted' ? 'success' : 'warning'}>{currentDispatch.data.status.toUpperCase()}</Badge>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <Button variant="ghost" loading={cancelDispatch.isPending} onClick={() => cancelDispatch.mutate({ dispatchId: currentDispatch.data!.id, emergencyId: selected.id })}>
-                      <IoCloseCircleOutline className="mr-2" /> Cancel dispatch
-                    </Button>
+                    {currentDispatch.data.status === 'offered' && selected.status === 'active' && (
+                      <Button variant="ghost" loading={cancelDispatch.isPending} onClick={() => cancelDispatch.mutate({ dispatchId: currentDispatch.data!.id, emergencyId: selected.id })}>
+                        <IoCloseCircleOutline className="mr-2" /> Cancel offer
+                      </Button>
+                    )}
                   </div>
                   <div className="mt-3"><LiveLocation ambulanceId={selected.assigned_ambulance_id} /></div>
                 </div>

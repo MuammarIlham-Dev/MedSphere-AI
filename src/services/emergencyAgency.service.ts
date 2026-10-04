@@ -73,6 +73,14 @@ export const emergencyAgencyService = {
     return dispatch;
   },
 
+  resolveNonAmbulance: async (emergencyId: string) => {
+    const emergency = await unwrap(
+      supabase.rpc('resolve_non_ambulance_emergency', { p_emergency_id: emergencyId }),
+    );
+    void publishEmergencyRealtime('status_changed', emergencyId).catch(() => undefined);
+    return emergency;
+  },
+
   updateStatus: async (
     dispatchId: string,
     emergencyId: string,

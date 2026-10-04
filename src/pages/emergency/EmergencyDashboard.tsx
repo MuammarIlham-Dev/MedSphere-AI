@@ -97,42 +97,45 @@ export default function EmergencyDashboard() {
             {emergencies?.map((e) => {
               const dispatchable = e.status === 'active' && ['medical','accident','other'].includes(e.type);
               return (
-                <button
+                <div
                   key={e.id}
-                  onClick={() => setSelectedId(e.id)}
-                  className={`block w-full p-5 text-left transition hover:bg-slate-50 dark:hover:bg-surface-dark-muted ${e.id === selectedId ? 'bg-brand-50/50 dark:bg-brand-950/20' : ''}`}
+                  className={`flex flex-col gap-4 p-5 transition hover:bg-slate-50 dark:hover:bg-surface-dark-muted lg:flex-row lg:items-center lg:justify-between ${e.id === selectedId ? 'bg-brand-50/50 dark:bg-brand-950/20' : ''}`}
                 >
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge tone={e.status === 'active' ? 'danger' : 'info'}>{e.status.replace('_',' ').toUpperCase()}</Badge>
-                        <span className="text-sm font-semibold">SOS-{e.id.slice(0, 6).toUpperCase()}</span>
-                        <span className="text-xs text-muted-foreground">{e.city ?? 'National'}</span>
-                        <span className="text-xs text-muted-foreground">{formatDateTime(e.created_at)}</span>
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-4 text-sm">
-                        <span className="flex items-center gap-2"><IoPulseOutline className="text-danger-500" />{e.type} emergency</span>
-                        <span className="flex items-center gap-2"><IoLocationOutline className="text-brand-500" />{e.lat.toFixed(4)}, {e.lng.toFixed(4)}</span>
-                      </div>
-                      {e.address && <p className="mt-1 truncate text-xs text-muted-foreground">{e.address}</p>}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedId(e.id)}
+                    aria-label={`Select SOS-${e.id.slice(0, 6).toUpperCase()}`}
+                    className="min-w-0 flex-1 text-left"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge tone={e.status === 'active' ? 'danger' : 'info'}>{e.status.replace('_',' ').toUpperCase()}</Badge>
+                      <span className="text-sm font-semibold">SOS-{e.id.slice(0, 6).toUpperCase()}</span>
+                      <span className="text-xs text-muted-foreground">{e.city ?? 'National'}</span>
+                      <span className="text-xs text-muted-foreground">{formatDateTime(e.created_at)}</span>
                     </div>
-                    <div className="shrink-0">
-                      {dispatchable && (
-                        <Button
-                          onClick={(event) => { event.stopPropagation(); dispatchNearest.mutate(e.id); }}
-                          loading={dispatchNearest.isPending && dispatchNearest.variables === e.id}
-                        >
-                          <IoNavigateOutline className="mr-2" /> Offer nearest
-                        </Button>
-                      )}
-                      {e.status === 'active' && !dispatchable && (
-                        <span className="rounded-xl border border-warning-200 bg-warning-50 px-3 py-2 text-xs font-medium text-warning-800 dark:border-warning-900 dark:bg-warning-950/30 dark:text-warning-300">
-                          {e.type === 'fire' ? 'Fire agency required' : e.type === 'police' ? 'Police agency required' : 'Specialized routing'}
-                        </span>
-                      )}
+                    <div className="mt-2 flex flex-wrap gap-4 text-sm">
+                      <span className="flex items-center gap-2"><IoPulseOutline className="text-danger-500" />{e.type} emergency</span>
+                      <span className="flex items-center gap-2"><IoLocationOutline className="text-brand-500" />{e.lat.toFixed(4)}, {e.lng.toFixed(4)}</span>
                     </div>
+                    {e.address && <p className="mt-1 truncate text-xs text-muted-foreground">{e.address}</p>}
+                  </button>
+
+                  <div className="shrink-0">
+                    {dispatchable && (
+                      <Button
+                        onClick={() => dispatchNearest.mutate(e.id)}
+                        loading={dispatchNearest.isPending && dispatchNearest.variables === e.id}
+                      >
+                        <IoNavigateOutline className="mr-2" /> Offer nearest
+                      </Button>
+                    )}
+                    {e.status === 'active' && !dispatchable && (
+                      <span className="rounded-xl border border-warning-200 bg-warning-50 px-3 py-2 text-xs font-medium text-warning-800 dark:border-warning-900 dark:bg-warning-950/30 dark:text-warning-300">
+                        {e.type === 'fire' ? 'Fire agency required' : e.type === 'police' ? 'Police agency required' : 'Specialized routing'}
+                      </span>
+                    )}
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>

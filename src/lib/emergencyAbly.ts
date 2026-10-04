@@ -24,6 +24,10 @@ export function emergencyChannel(name: string) {
   return getEmergencyAbly().channels.get(name);
 }
 
+export async function authorizeEmergencyAbly() {
+  return getEmergencyAbly().auth.authorize();
+}
+
 export function publishEmergencyLocation(
   ambulanceId: string,
   lat: number,

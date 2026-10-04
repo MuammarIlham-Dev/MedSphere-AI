@@ -357,7 +357,20 @@ grant execute on function public.dispatch_required_emergency_agencies(uuid) to a
 
 create or replace function public.get_emergency_agency_dispatches(
   p_emergency_id uuid
-) returns setof public.emergency_agency_dispatches
+) returns table (
+  dispatch_id uuid,
+  emergency_id uuid,
+  agency_id uuid,
+  agency_name text,
+  agency_type public.emergency_agency_type,
+  status public.emergency_agency_dispatch_status,
+  priority public.notification_priority,
+  distance_km numeric,
+  requested_at timestamptz,
+  expires_at timestamptz,
+  responded_at timestamptz,
+  assigned_member_id uuid
+)
 language plpgsql security definer set search_path = public as $$
 declare e public.emergencies; c text;
 begin
@@ -368,12 +381,16 @@ begin
   select * into e from public.emergencies where id=p_emergency_id;
   if not found then raise exception 'Emergency not found'; end if;
   select city into c from public.profiles where id=auth.uid();
+
   if public.current_role()='emergency_operator' and c is not null and e.city is not null and c<>e.city then
     raise exception 'Emergency is outside your dispatch region';
   end if;
 
   return query
-    select d from public.emergency_agency_dispatches d
+    select d.id,d.emergency_id,d.agency_id,a.name,a.agency_type,d.status,
+           d.priority,d.distance_km,d.requested_at,d.expires_at,d.responded_at,d.assigned_member_id
+    from public.emergency_agency_dispatches d
+    join public.emergency_agencies a on a.id=d.agency_id
     where d.emergency_id=e.id
     order by d.requested_at asc;
 end $$;
@@ -466,6 +483,27 @@ end $$;
 
 revoke all on function public.escalate_expired_emergency_agency_dispatches(uuid) from public;
 grant execute on function public.escalate_expired_emergency_agency_dispatches(uuid) to authenticated;
+
+-- Responder queue.
+create or replace function public.get_my_emergency_agencies()
+returns table (
+  agency_id uuid,
+  agency_name text,
+  agency_type public.emergency_agency_type,
+  city text,
+  phone text
+)
+language sql security definer set search_path = public as $$
+  select a.id,a.name,a.agency_type,a.city,a.phone
+  from public.emergency_agencies a
+  join public.emergency_agency_members m on m.agency_id=a.id
+  where m.user_id=auth.uid() and m.is_active
+    and a.is_active and a.verification='verified'
+  order by a.name;
+$$;
+
+revoke all on function public.get_my_emergency_agencies() from public;
+grant execute on function public.get_my_emergency_agencies() to authenticated;
 
 -- Responder queue.
 create or replace function public.get_my_emergency_agency_dispatches()

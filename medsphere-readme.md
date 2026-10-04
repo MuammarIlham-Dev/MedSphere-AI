@@ -98,7 +98,7 @@ cp .env.example .env            # fill in values (see section 4)
 
 # Local Supabase (Postgres + Auth + Storage + Edge runtime)
 supabase start
-supabase db push                # applies migrations 0001–0004
+supabase db push                # applies the full ordered migration set
 pnpm db:types                   # regenerates src/types/database.types.ts
 
 # Secrets for the local edge function
@@ -117,6 +117,7 @@ pnpm dev                        # http://localhost:5173
 | `VITE_APP_NAME` | client | Display name |
 | `ABLY_API_KEY` | **server (edge secret)** | Used by `ably-token` function only |
 | `SUPABASE_SERVICE_ROLE_KEY` | **server (edge secret)** | Auto-injected into edge functions |
+| `EMERGENCY_ESCALATION_SECRET` | **server (edge secret)** | Scheduler-only authentication for the Emergency escalation worker |
 
 The service-role key **never** ships to the browser. All privileged logic lives in SQL `security definer` functions or edge functions. Emergency responder roles cannot self-register; an administrator must provision the role and agency membership.
 

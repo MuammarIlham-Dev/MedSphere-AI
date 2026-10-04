@@ -155,7 +155,7 @@ export default function EmergencyDashboard() {
               {currentDispatch.isLoading && <Skeleton className="h-20 w-full" />}
               {agencyDispatches.isLoading && <Skeleton className="h-28 w-full" />}
 
-              {selected.status === 'active' && (
+              {selected.status === 'active' && selected.type !== 'medical' && (
                 <div className="rounded-2xl border border-slate-200 p-4 dark:border-white/10">
                   <div className="flex items-center justify-between gap-3">
                     <div>
